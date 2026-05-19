@@ -51,7 +51,7 @@ pub struct NumberFaxRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NumberForwardRequest {
     /// 10-digit destination TN.
-    pub destination: i64,
+    pub destination: String,
 }
 
 /// Body for `PUT /v2.2/numbers/{number}/translation`.

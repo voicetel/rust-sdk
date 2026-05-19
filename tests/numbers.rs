@@ -242,7 +242,7 @@ async fn numbers_fax_forward_sms_lifecycle() {
         .set_forward(
             "2015550123",
             &NumberForwardRequest {
-                destination: 2_015_555_678,
+                destination: "2015555678".into(),
             },
         )
         .await
