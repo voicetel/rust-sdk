@@ -1,0 +1,31 @@
+[package]
+name = "voicetel"
+version = "2.2.10"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+description = "Official Rust SDK for the VoiceTel REST API (v2.2.10). Provision numbers, place orders, validate e911, send messages, and manage your account."
+repository = "https://github.com/voicetel/rust-sdk"
+homepage = "https://voicetel.com/docs/api/v2.2/"
+documentation = "https://docs.rs/voicetel"
+readme = "README.md"
+keywords = ["telephony", "sip", "sms", "e911", "voip"]
+categories = ["api-bindings", "web-programming::http-client"]
+authors = ["VoiceTel <support@voicetel.com>"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", default-features = false, features = ["time"] }
+thiserror = "1.0"
+url = "2.5"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+wiremock = "0.6"
+serde_json = "1.0"
+
+[lib]
+name = "voicetel"
+path = "src/lib.rs"
