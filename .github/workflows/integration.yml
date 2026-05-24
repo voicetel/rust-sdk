@@ -1,0 +1,25 @@
+name: integration
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.toml') }}
+      - name: Integration tests (read-only)
+        env:
+          VOICETEL_USERNAME: ${{ secrets.VOICETEL_USERNAME }}
+          VOICETEL_PASSWORD: ${{ secrets.VOICETEL_PASSWORD }}
+        run: cargo test --test integration -- --ignored -v
