@@ -11,6 +11,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 
+use uuid::Uuid;
+
 use crate::error::{ApiError, ErrorKind};
 
 /// Retryable HTTP status codes (429 and selected 5xx).
@@ -134,13 +136,17 @@ impl Transport {
             None
         };
 
+        let idempotency_key = matches!(method, Method::POST | Method::PUT | Method::PATCH)
+            .then(|| Uuid::new_v4().to_string());
+
         let mut attempt: u32 = 0;
         loop {
             let mut req = self
                 .http
                 .request(method.clone(), &url)
                 .header(header::USER_AGENT, &self.user_agent)
-                .header(header::ACCEPT, "application/json");
+                .header(header::ACCEPT, "application/json")
+                .header(header::ACCEPT_ENCODING, "gzip");
             if let Some(ref bytes) = body_bytes {
                 req = req
                     .header(header::CONTENT_TYPE, "application/json")
@@ -150,6 +156,9 @@ impl Transport {
                 if let Some(key) = self.api_key() {
                     req = req.header(header::AUTHORIZATION, format!("Bearer {}", key));
                 }
+            }
+            if let Some(ref key) = idempotency_key {
+                req = req.header("Idempotency-Key", key.as_str());
             }
 
             let resp = match req.send().await {
