@@ -22,4 +22,4 @@ jobs:
         env:
           VOICETEL_USERNAME: ${{ secrets.VOICETEL_USERNAME }}
           VOICETEL_PASSWORD: ${{ secrets.VOICETEL_PASSWORD }}
-        run: cargo test --test integration -- --ignored -v
+        run: cargo test -v --test integration -- --ignored
