@@ -19,12 +19,21 @@ use std::time::Duration;
 
 use voicetel::{Client, DEFAULT_BASE_URL};
 
-async fn integration_client() -> Client {
-    let user = env::var("VOICETEL_USERNAME").ok();
-    let pass = env::var("VOICETEL_PASSWORD").ok();
+async fn integration_client() -> Option<Client> {
+    let user = env::var("VOICETEL_USERNAME")
+        .ok()
+        .filter(|v| !v.trim().is_empty());
+    let pass = env::var("VOICETEL_PASSWORD")
+        .ok()
+        .filter(|v| !v.trim().is_empty());
     let (user, pass) = match (user, pass) {
         (Some(u), Some(p)) => (u, p),
-        _ => panic!("set VOICETEL_USERNAME / VOICETEL_PASSWORD to run integration tests"),
+        _ => {
+            eprintln!(
+                "skipping: set VOICETEL_USERNAME / VOICETEL_PASSWORD to run integration tests"
+            );
+            return None;
+        }
     };
     let base = env::var("VOICETEL_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let uid: u64 = user.parse().expect("VOICETEL_USERNAME must be numeric");
@@ -34,13 +43,15 @@ async fn integration_client() -> Client {
         .build()
         .unwrap();
     client.login(uid, &pass).await.expect("login");
-    client
+    Some(client)
 }
 
 #[tokio::test]
 #[ignore]
 async fn account_get_live() {
-    let c = integration_client().await;
+    let Some(c) = integration_client().await else {
+        return;
+    };
     let me = c.account().get().await.expect("Account.get");
     assert!(me.username.is_some(), "Account.Get returned empty username");
 }
@@ -48,7 +59,9 @@ async fn account_get_live() {
 #[tokio::test]
 #[ignore]
 async fn read_only_lists_live() {
-    let c = integration_client().await;
+    let Some(c) = integration_client().await else {
+        return;
+    };
     c.numbers().list().await.expect("Numbers.list");
     c.gateways().list().await.expect("Gateways.list");
     c.acl().list().await.expect("ACL.list");
