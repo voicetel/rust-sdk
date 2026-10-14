@@ -53,9 +53,6 @@ pub struct AccountServices {
     /// International calling.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intl: Option<bool>,
-    /// Remote Caller-ID.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rcid: Option<bool>,
     /// MMS delivery.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mms: Option<bool>,

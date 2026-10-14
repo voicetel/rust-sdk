@@ -1,10 +1,10 @@
 [package]
 name = "voicetel"
-version = "2.2.10"
+version = "2.2.14"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT"
-description = "Official Rust SDK for the VoiceTel REST API (v2.2.10). Provision numbers, place orders, validate e911, send messages, and manage your account."
+description = "Official Rust SDK for the VoiceTel REST API (v2.2.14). Provision numbers, place orders, validate e911, send messages, and manage your account."
 repository = "https://github.com/voicetel/rust-sdk"
 homepage = "https://voicetel.com/docs/api/v2.2/"
 documentation = "https://docs.rs/voicetel"

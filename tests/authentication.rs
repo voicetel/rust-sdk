@@ -38,7 +38,7 @@ async fn auth_update() {
         .await;
     let c = test_client(&server).await;
     let body = AuthPutRequest {
-        auth_type: Some(auth_type::IP_AUTH),
+        auth_type: Some(auth_type::LAX),
         password: None,
     };
     let out = c.authentication().update(&body).await.unwrap();

@@ -89,7 +89,21 @@ async fn brand_and_campaign() {
         .and(path("/v2.2/messaging/campaigns"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-                "campaigns": [{"id": "ABCDEFG", "status": "ACTIVE", "numbers": []}]
+                "campaigns": [
+                    {
+                        "id": "CAMP002",
+                        "status": "CAMPAIGN_DCA_COMPLETE",
+                        "numbers": ["2015550123"],
+                        "dca": {
+                            "electionComplete": true,
+                            "electedCarriers": ["AT&T", "T-Mobile", "Verizon Wireless"],
+                            "carriers": [
+                                {"carrier": "T-Mobile", "status": "ACTIVE", "detail": "Campaign approved", "updatedAt": "2026-10-01T12:00:00Z"}
+                            ]
+                        }
+                    },
+                    {"id": "NOEXIST", "status": "CAMPAIGN_INVALID_ID", "numbers": [], "dca": null}
+                ]
             }))),
         )
         .mount(&server)
@@ -122,7 +136,26 @@ async fn brand_and_campaign() {
     assert_eq!(camp.result.status, "Success");
 
     let status = c.messaging().campaign_status().await.unwrap();
-    assert_eq!(status.campaigns.len(), 1);
+    assert_eq!(status.campaigns.len(), 2);
+    let ready = &status.campaigns[0];
+    assert_eq!(ready.status, "CAMPAIGN_DCA_COMPLETE");
+    let dca = ready.dca.as_ref().expect("dca present");
+    assert!(dca.election_complete);
+    assert_eq!(
+        dca.elected_carriers,
+        Some(
+            vec!["AT&T", "T-Mobile", "Verizon Wireless"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
+        )
+    );
+    assert_eq!(dca.carriers.len(), 1);
+    assert_eq!(dca.carriers[0].carrier, "T-Mobile");
+    assert_eq!(dca.carriers[0].status, "ACTIVE");
+    assert_eq!(dca.carriers[0].detail, "Campaign approved");
+    assert_eq!(dca.carriers[0].updated_at, "2026-10-01T12:00:00Z");
+    assert!(status.campaigns[1].dca.is_none());
 }
 
 #[tokio::test]

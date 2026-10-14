@@ -268,13 +268,6 @@ pub struct PortSummary {
     /// Carrier message.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// Support URL.
-    #[serde(
-        default,
-        rename = "supportUrl",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub support_url: Option<String>,
 }
 
 /// Full record for a single port-in.
@@ -337,7 +330,7 @@ pub struct OrderCreateData {
     /// Server-assigned order ID.
     #[serde(rename = "orderId")]
     pub order_id: String,
-    /// Total amount charged (USD).
+    /// Amount deducted from the account balance.
     #[serde(rename = "amountCharged")]
     pub amount_charged: f64,
     /// TNs that were successfully ordered.

@@ -272,7 +272,12 @@ async fn numbers_messaging_lifecycle() {
     Mock::given(method("GET"))
         .and(path("/v2.2/numbers/2015550123/messaging"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "number": "2015550123", "enabled": true, "carrier": 17, "routeIn": 1, "resource": "x", "network": "A", "campaign": null
+            "number": "2015550123", "enabled": true, "carrier": 1, "routeIn": 1, "resource": "x",
+            "network": "C", "campaign": null,
+            "pending": {
+                "campaignId": "CAMP002", "state": "assigning", "message": "provisioning",
+                "createdAt": "2026-10-01T12:00:00Z", "updatedAt": "2026-10-01T12:01:00Z"
+            }
         }))))
         .mount(&server)
         .await;
@@ -287,22 +292,32 @@ async fn numbers_messaging_lifecycle() {
         .await;
     Mock::given(method("PUT"))
         .and(path("/v2.2/numbers/2015550123/messaging-campaign"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "number": "2015550123", "campaignId": "ABCDEFG", "carrier": 17, "network": "A", "upstreamCnpId": "CAMP004", "previousNetwork": null, "previousNetworkCleared": false
-        }))))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "campaignId": "CAMP002", "status": "pending",
+                "carrier": 1, "network": "C", "upstreamCnpId": "BANDW",
+                "previousNetwork": null, "previousNetworkCleared": false,
+                "alreadyAssigned": false, "orderId": null, "warning": null,
+                "message": "accepted for provisioning",
+                "job": {
+                    "campaignId": "CAMP002", "state": "queued", "message": "accepted",
+                    "createdAt": "2026-10-01T12:00:00Z", "updatedAt": "2026-10-01T12:00:00Z"
+                }
+            }))),
+        )
         .mount(&server)
         .await;
     Mock::given(method("DELETE"))
         .and(path("/v2.2/numbers/2015550123/messaging-campaign"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "number": "2015550123", "campaignId": "ABCDEFG", "network": "A", "upstreamCnpId": "CAMP004", "unassigned": true
+            "number": "2015550123", "campaignId": "CAMP002", "network": "C", "upstreamCnpId": "BANDW", "unassigned": true
         }))))
         .mount(&server)
         .await;
     Mock::given(method("DELETE"))
         .and(path("/v2.2/numbers/messaging-campaign"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "campaignId": "ABCDEFG", "network": "A", "upstreamCnpId": "CAMP004", "unassignedNumbers": ["2015550123"], "failed": []
+            "campaignId": "CAMP002", "network": "C", "upstreamCnpId": "BANDW", "unassignedNumbers": ["2015550123"], "failed": []
         }))))
         .mount(&server)
         .await;
@@ -310,14 +325,18 @@ async fn numbers_messaging_lifecycle() {
         .and(path("/v2.2/numbers/2015550123/port-out-pin"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-                "number": "2015550123", "portOutPin": "1234"
+                "number": "2015550123", "portOutPin": "1234", "changed": true
             }))),
         )
         .mount(&server)
         .await;
 
     let c = test_client(&server).await;
-    c.numbers().get_messaging("2015550123").await.unwrap();
+    let m = c.numbers().get_messaging("2015550123").await.unwrap();
+    assert_eq!(m.network.as_deref(), Some("C"));
+    let pending = m.pending.as_ref().expect("pending job");
+    assert_eq!(pending.campaign_id, "CAMP002");
+    assert_eq!(pending.state, MessagingEnablementJobState::Assigning);
     let p = c
         .numbers()
         .patch_messaging(
@@ -335,12 +354,20 @@ async fn numbers_messaging_lifecycle() {
         .assign_campaign(
             "2015550123",
             &NumberCampaignAssignRequest {
-                campaign_id: "ABCDEFG".into(),
+                campaign_id: "CAMP002".into(),
             },
         )
         .await
         .unwrap();
-    assert_eq!(a.campaign_id, "ABCDEFG");
+    assert_eq!(a.campaign_id, "CAMP002");
+    assert_eq!(a.status, CampaignAssignStatus::Pending);
+    assert!(!a.already_assigned);
+    assert_eq!(a.order_id, None);
+    assert_eq!(a.message.as_deref(), Some("accepted for provisioning"));
+    assert_eq!(
+        a.job.as_ref().unwrap().state,
+        MessagingEnablementJobState::Queued
+    );
     let u = c.numbers().unassign_campaign("2015550123").await.unwrap();
     assert!(u.unassigned);
     let bu = c
@@ -358,4 +385,45 @@ async fn numbers_messaging_lifecycle() {
         .await
         .unwrap();
     assert_eq!(pin.port_out_pin, "1234");
+    assert!(pin.changed);
+}
+
+#[tokio::test]
+async fn numbers_assign_campaign_already_and_enabled() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .and(path("/v2.2/numbers/2015550123/messaging-campaign"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "campaignId": "CAMP002", "status": "already",
+                "carrier": 19, "network": "B", "upstreamCnpId": "CAMP003",
+                "previousNetwork": "A", "previousNetworkCleared": true,
+                "alreadyAssigned": true, "orderId": 987654,
+                "warning": "stale registration on path A removal requested",
+                "message": null, "job": null
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let a = c
+        .numbers()
+        .assign_campaign(
+            "2015550123",
+            &NumberCampaignAssignRequest {
+                campaign_id: "CAMP002".into(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(a.status, CampaignAssignStatus::Already);
+    assert!(a.already_assigned);
+    assert!(a.previous_network_cleared);
+    assert_eq!(a.previous_network.as_deref(), Some("A"));
+    assert_eq!(a.order_id, Some(OrderId::Numeric(987654)));
+    assert_eq!(
+        a.warning.as_deref(),
+        Some("stale registration on path A removal requested")
+    );
+    assert!(a.job.is_none());
 }

@@ -5,22 +5,26 @@ use serde::{Deserialize, Serialize};
 use super::common::CidrEntry;
 
 /// Auth-mode constants for [`AuthPutRequest::auth_type`] /
-/// [`AuthGetData::auth_type`].
+/// [`AuthGetData::auth_type`]:
+///
+/// `0` = Digest, `1` = Lax (Digest | IP), `2` = IP, `3` = Strict
+/// (Digest + IP).
 pub mod auth_type {
-    /// SIP Digest authentication only.
+    /// `0` — Digest.
     pub const DIGEST: i32 = 0;
-    /// IP allowlist only.
-    pub const IP_AUTH: i32 = 1;
-    /// Digest OR IP allowlist.
-    pub const DIGEST_OR_IP: i32 = 2;
-    /// Digest AND IP allowlist.
-    pub const DIGEST_AND_IP: i32 = 3;
+    /// `1` — Lax (Digest | IP).
+    pub const LAX: i32 = 1;
+    /// `2` — IP.
+    pub const IP: i32 = 2;
+    /// `3` — Strict (Digest + IP).
+    pub const STRICT: i32 = 3;
 }
 
 /// Body for `PUT /v2.2/auth`. All fields optional.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AuthPutRequest {
-    /// Auth mode (see [`auth_type`]).
+    /// Auth mode: `0` = Digest, `1` = Lax (Digest | IP), `2` = IP,
+    /// `3` = Strict (Digest + IP) (see [`auth_type`]).
     #[serde(rename = "authType", skip_serializing_if = "Option::is_none")]
     pub auth_type: Option<i32>,
     /// New password (6-10 alphanumeric; at least one letter and one digit).
@@ -31,7 +35,8 @@ pub struct AuthPutRequest {
 /// Response data for `GET /v2.2/auth`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AuthGetData {
-    /// Currently-active auth mode.
+    /// Currently-active auth mode: `0` = Digest, `1` = Lax (Digest | IP),
+    /// `2` = IP, `3` = Strict (Digest + IP) (see [`auth_type`]).
     #[serde(rename = "authType")]
     pub auth_type: i32,
     /// Human-readable description of the auth mode.

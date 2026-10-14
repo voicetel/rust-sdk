@@ -79,7 +79,7 @@ pub struct NumberMessagingPatchRequest {
     /// `numbers_sms` row ID; `0` detaches.
     #[serde(default, rename = "routeIn", skip_serializing_if = "Option::is_none")]
     pub route_in: Option<i32>,
-    /// Outbound carrier ID.
+    /// Outbound carrier id.
     #[serde(default, rename = "routeOut", skip_serializing_if = "Option::is_none")]
     pub route_out: Option<i32>,
 }
@@ -159,6 +159,52 @@ pub struct CampaignBinding {
     pub upstream_cnp_id: String,
 }
 
+/// Lifecycle state of a [`MessagingEnablementJob`]: `queued` → `hosting` →
+/// `assigning` → `routing` → `done`, or `failed` (see `message`). The number
+/// keeps its previous routing until `done`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MessagingEnablementJobState {
+    /// Accepted, waiting to start.
+    #[serde(rename = "queued")]
+    Queued,
+    /// Being hosted on the messaging path.
+    #[serde(rename = "hosting")]
+    Hosting,
+    /// Campaign assignment in flight.
+    #[serde(rename = "assigning")]
+    Assigning,
+    /// Routing being installed.
+    #[serde(rename = "routing")]
+    Routing,
+    /// Provisioning complete.
+    #[serde(rename = "done")]
+    Done,
+    /// Provisioning failed (see [`MessagingEnablementJob::message`]).
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+/// State of an asynchronous (path C) 10DLC enablement. Returned by
+/// `PUT /v2.2/numbers/{number}/messaging-campaign` (`status` `pending`) and
+/// surfaced by `GET /v2.2/numbers/{number}/messaging` (`pending`) while
+/// provisioning is in flight.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MessagingEnablementJob {
+    /// TCR campaign ID being enabled.
+    #[serde(rename = "campaignId")]
+    pub campaign_id: String,
+    /// Job state.
+    pub state: MessagingEnablementJobState,
+    /// Latest progress note, or the reason for failure.
+    pub message: String,
+    /// RFC3339 timestamp the job was created.
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    /// RFC3339 timestamp of the latest progress update.
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
 /// Messaging-routing state for one number.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NumberMessagingState {
@@ -176,10 +222,13 @@ pub struct NumberMessagingState {
     pub route_in: i32,
     /// Inbound resource (email / URL / IP).
     pub resource: String,
-    /// `A`, `B`, or `None`.
+    /// `A`, `B`, `C`, or `None`.
     pub network: Option<String>,
     /// Bound campaign, if any.
     pub campaign: Option<CampaignBinding>,
+    /// Async path-C enablement in progress, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<MessagingEnablementJob>,
 }
 
 /// Response data for `POST /v2.2/numbers`.
@@ -285,7 +334,44 @@ pub struct NumberTranslationData {
     pub translation: String,
 }
 
+/// Outcome of binding a number to a 10DLC campaign
+/// (`PUT /v2.2/numbers/{number}/messaging-campaign`).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum CampaignAssignStatus {
+    /// Bound now (path B).
+    #[default]
+    #[serde(rename = "enabled")]
+    Enabled,
+    /// The number was already bound to this campaign (records reconciled,
+    /// no new order).
+    #[serde(rename = "already")]
+    Already,
+    /// Accepted and being provisioned (path C) — poll
+    /// `GET /v2.2/numbers/{number}/messaging` (`pending`) until the job's
+    /// state is `done` or `failed`.
+    #[serde(rename = "pending")]
+    Pending,
+}
+
+/// Network order ID — string or integer on the wire, or `None`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum OrderId {
+    /// String form.
+    Text(String),
+    /// Numeric form.
+    Numeric(i64),
+}
+
 /// Response data for `PUT /v2.2/numbers/{number}/messaging-campaign`.
+///
+/// Result of binding a single number to a 10DLC campaign. The campaign must
+/// be available to the account and ACTIVE; the number is enabled on the
+/// messaging path the campaign lives on — path B synchronously (`status`
+/// `enabled`), path C asynchronously (`status` `pending`: poll
+/// `GET /v2.2/numbers/{number}/messaging` `pending` until the job's `state`
+/// is `done` or `failed`). Idempotent: a number already bound to the campaign
+/// reports `status` `already`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NumberMessagingCampaignAssignData {
     /// 10-digit TN.
@@ -293,19 +379,46 @@ pub struct NumberMessagingCampaignAssignData {
     /// TCR campaign ID.
     #[serde(rename = "campaignId")]
     pub campaign_id: String,
-    /// `17` = path A, `19` = path B.
+    /// Assignment outcome.
+    pub status: CampaignAssignStatus,
+    /// Outbound carrier id the number routes through once enabled
+    /// (`19` = path B, `1` = path C). For a pending path-C enablement the
+    /// number keeps its current routing until provisioning completes.
     pub carrier: i32,
-    /// `A`, `B`, or `None`.
+    /// Messaging path the campaign resolves to (from the CSP sharing record):
+    /// `B`, `C`, or `None`. Path B is assigned synchronously; path C is
+    /// provisioned asynchronously (`status` `pending`).
     pub network: Option<String>,
-    /// `CAMP004` for path A, `CAMP003` for path B.
+    /// CNP ID from the CSP sharing record: `CAMP003` = path B, `BANDW` =
+    /// path C. (Campaigns on path A, `CAMP004`, are being migrated and take
+    /// no new numbers.)
     #[serde(rename = "upstreamCnpId")]
     pub upstream_cnp_id: Option<String>,
-    /// `A`, `B`, `unknown`, or `None`.
+    /// Messaging path the number was bound to before this call: `A`, `B`, or
+    /// `None` if there was no prior binding.
     #[serde(rename = "previousNetwork")]
     pub previous_network: Option<String>,
     /// `true` if a prior binding was disabled.
     #[serde(rename = "previousNetworkCleared")]
     pub previous_network_cleared: bool,
+    /// `true` when the number was already bound to this campaign on the
+    /// target messaging path; records are reconciled and no new network order
+    /// is placed.
+    #[serde(rename = "alreadyAssigned")]
+    pub already_assigned: bool,
+    /// Network order id created for a path-B assignment. `None` for path C
+    /// (see `job`), idempotent no-ops, and assignments confirmed without a
+    /// new order.
+    #[serde(rename = "orderId")]
+    pub order_id: Option<OrderId>,
+    /// Non-fatal condition detected during the assignment (for example a
+    /// stale registration on the other messaging path whose removal has been
+    /// requested).
+    pub warning: Option<String>,
+    /// Human-readable note for a pending enablement.
+    pub message: Option<String>,
+    /// Async path-C enablement job, when `status` is `pending`.
+    pub job: Option<MessagingEnablementJob>,
 }
 
 /// Response data for `DELETE /v2.2/numbers/{number}/messaging-campaign`.
@@ -368,11 +481,19 @@ pub struct NumbersMessagingListData {
 }
 
 /// Response data for `PATCH /v2.2/numbers/{number}/port-out-pin`.
+///
+/// The call is idempotent: a PIN is locked for 30 days once set, so a number
+/// that already has one returns it unchanged with `changed == false`; both
+/// cases return HTTP 200.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PortOutPinUpdateData {
-    /// 10-digit TN.
+    /// Ten-digit TN whose PIN is reported.
     pub number: String,
-    /// Newly-set PIN.
+    /// The port-out PIN now on file for this number (the value just set, or
+    /// the existing value if the number was already locked).
     #[serde(rename = "portOutPin")]
     pub port_out_pin: String,
+    /// `true` if this request set the PIN; `false` if the number already had
+    /// one, which is locked for 30 days once set and is returned unchanged.
+    pub changed: bool,
 }

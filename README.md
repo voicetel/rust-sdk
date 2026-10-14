@@ -2,7 +2,7 @@
 
 The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed `serde` models and an async-first ergonomics on top of [`reqwest`].
 
-![Version](https://img.shields.io/badge/version-2.2.10-blue)
+![Version](https://img.shields.io/badge/version-2.2.14-blue)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
@@ -67,7 +67,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 
 ```toml
 [dependencies]
-voicetel = "2.2.10"
+voicetel = "2.2.14"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 

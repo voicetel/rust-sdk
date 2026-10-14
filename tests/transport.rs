@@ -1,7 +1,16 @@
 //! Transport-layer behaviour: auth header, retries, envelope unwrap, errors.
 
 mod common;
-use common::{envelope, no_key_client, test_client};
+use common::{envelope, test_client};
+
+/// Build a Client without an API key for testing the unauthenticated error path.
+fn no_key_client(server: &wiremock::MockServer) -> Client {
+    Client::builder()
+        .base_url(server.uri())
+        .max_retries(0)
+        .build()
+        .expect("build client")
+}
 
 use voicetel::{ApiError, Client, ErrorKind};
 use wiremock::matchers::{header, method, path};

@@ -43,7 +43,9 @@ pub struct MessagingBrandCreateRequest {
     pub messaging_brand_description: Option<String>,
 }
 
-/// Body for `POST /v2.2/messaging/campaigns`.
+/// Body for `POST /v2.2/messaging/campaigns`. Passed through to the campaign
+/// registration service; `campaignClassName` (from the campaign registry)
+/// and `campaignStartDate` (today) are auto-populated if omitted.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MessagingCampaignCreateRequest {
     /// Owning brand ID.
@@ -189,15 +191,58 @@ pub struct MessagingCampaignCreateData {
     pub result: CampaignRegistrationResult,
 }
 
+/// One carrier's latest DCA decision in [`CampaignDca`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CampaignDcaCarrier {
+    /// Carrier name (e.g. `T-Mobile`).
+    pub carrier: String,
+    /// Carrier decision: `ACTIVE`, `REJECTED`, `SUSPENDED`, `UNSUSPENDED`,
+    /// or `TERMINATED`.
+    pub status: String,
+    /// The reviewer's note, as given.
+    pub detail: String,
+    /// RFC3339 timestamp of the decision.
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+/// Carrier (DCA) review progress for a campaign; `None` for
+/// `CAMPAIGN_INVALID_ID`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CampaignDca {
+    /// `true` once every carrier has a DCA assigned to review the campaign.
+    #[serde(rename = "electionComplete")]
+    pub election_complete: bool,
+    /// Carriers with a DCA assigned so far (`None` when unavailable).
+    #[serde(
+        default,
+        rename = "electedCarriers",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub elected_carriers: Option<Vec<String>>,
+    /// Each carrier DCA decision received, latest per carrier.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub carriers: Vec<CampaignDcaCarrier>,
+}
+
 /// One campaign and its currently-bound numbers.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CampaignStatusItem {
     /// 7-character TCR campaign ID.
     pub id: String,
-    /// CSP status word.
+    /// Campaign status: `CAMPAIGN_DCA_COMPLETE` (ready: carrier review
+    /// finished, numbers assigned), `CAMPAIGN_DCA_COMPLETE_NO_NUMBERS_ASSIGNED`,
+    /// `CAMPAIGN_PENDING_DCA` (active at the campaign registry, but carrier
+    /// (DCA) review is not finished yet; numbers cannot be enabled until it
+    /// is), `CAMPAIGN_DCA_REJECTED` (a carrier's DCA rejected or suspended
+    /// the campaign; see `dca.carriers`), `CAMPAIGN_<registry status>`, or
+    /// `CAMPAIGN_INVALID_ID`.
     pub status: String,
     /// TNs currently bound.
     pub numbers: Vec<String>,
+    /// Carrier (DCA) review progress; `None` for `CAMPAIGN_INVALID_ID`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dca: Option<CampaignDca>,
 }
 
 /// Response data for `GET /v2.2/messaging/campaigns`.
