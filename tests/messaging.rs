@@ -188,40 +188,52 @@ async fn messaging_health_surface() {
 
     Mock::given(method("GET"))
         .and(path("/v2.2/messaging/health"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "summary": { "numbers": 3, "healthy": 2 }
-        }))))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "summary": { "numbers": 3, "healthy": 2 }
+            }))),
+        )
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/v2.2/messaging/health/alerts"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "enabled": true
-        }))))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "enabled": true
+            }))),
+        )
         .mount(&server)
         .await;
     Mock::given(method("PUT"))
         .and(path("/v2.2/messaging/health/alerts"))
         .and(body_partial_json(serde_json::json!({ "enabled": false })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "enabled": false
-        }))))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "enabled": false
+            }))),
+        )
         .mount(&server)
         .await;
     Mock::given(method("POST"))
         .and(path("/v2.2/messaging/health/check"))
-        .and(body_partial_json(serde_json::json!({ "number": "2125550123" })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "number": "2125550123", "inService": true
-        }))))
+        .and(body_partial_json(
+            serde_json::json!({ "number": "2125550123" }),
+        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "number": "2125550123", "inService": true
+            }))),
+        )
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/v2.2/messaging/health/samples"))
         .and(query_param("number", "2125550123"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "samples": [{ "reason": "spam" }]
-        }))))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "samples": [{ "reason": "spam" }]
+            }))),
+        )
         .mount(&server)
         .await;
 
