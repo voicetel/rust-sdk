@@ -179,3 +179,66 @@ async fn numbers_state() {
         .unwrap();
     assert_eq!(out.numbers.len(), 1);
 }
+
+#[tokio::test]
+async fn messaging_health_surface() {
+    // v2.2.15: messaging-health endpoints have no response schema in the spec, so the
+    // SDK returns the decoded JSON as a raw serde_json::Value; bodies/query are matched.
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/v2.2/messaging/health"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+            "summary": { "numbers": 3, "healthy": 2 }
+        }))))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/messaging/health/alerts"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+            "enabled": true
+        }))))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/v2.2/messaging/health/alerts"))
+        .and(body_partial_json(serde_json::json!({ "enabled": false })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+            "enabled": false
+        }))))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v2.2/messaging/health/check"))
+        .and(body_partial_json(serde_json::json!({ "number": "2125550123" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+            "number": "2125550123", "inService": true
+        }))))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/messaging/health/samples"))
+        .and(query_param("number", "2125550123"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+            "samples": [{ "reason": "spam" }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let c = test_client(&server).await;
+
+    let health = c.messaging().health().await.unwrap();
+    assert_eq!(health["summary"]["numbers"], 3);
+
+    let alerts = c.messaging().health_alerts().await.unwrap();
+    assert_eq!(alerts["enabled"], true);
+
+    let off = c.messaging().set_health_alerts(false).await.unwrap();
+    assert_eq!(off["enabled"], false);
+
+    let check = c.messaging().health_check("2125550123").await.unwrap();
+    assert_eq!(check["inService"], true);
+
+    let samples = c.messaging().health_samples("2125550123").await.unwrap();
+    assert_eq!(samples["samples"][0]["reason"], "spam");
+}

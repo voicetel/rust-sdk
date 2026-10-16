@@ -2,7 +2,7 @@
 
 The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed `serde` models and an async-first ergonomics on top of [`reqwest`].
 
-![Version](https://img.shields.io/badge/version-2.2.14-blue)
+![Version](https://img.shields.io/badge/version-2.2.15-blue)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
@@ -45,7 +45,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 - **Account** — profile, sub-accounts, CDRs, credits, payments, MRC, registration, password recovery.
 - **e911** — record provisioning, address validation, lookup, removal.
 - **Gateways** — list, create, update, delete, view bound numbers.
-- **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state.
+- **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state, and messaging health (account overview, per-number live check, spam-blocked samples, alert-email setting).
 - **Lookups** — CNAM and LRN dips.
 - **iNumbering** — inventory search, coverage queries, number orders, port-in submissions, port-out availability (with v2.2.10 `localRoutingNumber` / `rateCenterTier`).
 - **Support** — ticket create / read / update / delete, threaded messages, replies.
@@ -67,7 +67,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 
 ```toml
 [dependencies]
-voicetel = "2.2.14"
+voicetel = "2.2.15"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -242,7 +242,7 @@ let client = Client::builder().http_client(http).build()?;
 
 These endpoints are limited to **6 requests per hour per IP**:
 
-- `account/info` (`AccountService::get`)
+- `account` (`AccountService::get`)
 - `account/cdr` (`AccountService::cdr`)
 - `account/recurring-charges` (`AccountService::recurring_charges`)
 - `account/payments` (`AccountService::payments`)
