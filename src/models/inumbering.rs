@@ -12,11 +12,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub enum OrderNumber {
     /// Plain 10-digit TN.
     Plain(String),
-    /// 10-digit TN with optional gateway route override.
+    /// 10-digit TN with optional route override.
     WithRoute {
         /// 10-digit TN.
         number: String,
-        /// Optional gateway route ID.
+        /// Global route type for numbers in this order: `1` USER, `2` T30,
+        /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+        /// `9` MOBILE.
         route: Option<i32>,
     },
 }

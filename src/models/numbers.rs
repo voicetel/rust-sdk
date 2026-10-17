@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 pub struct NumberAddRequest {
     /// 10-digit TN to attach.
     pub number: String,
-    /// Gateway route ID; defaults to `4` (DID) on the server.
+    /// Global route type: `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID
+    /// (default), `5` T38, `6` VOICEML, `8` SDN, `9` MOBILE. Defaults to `4`
+    /// (DID) on the server when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub route: Option<i32>,
 }
@@ -15,7 +17,8 @@ pub struct NumberAddRequest {
 /// Body for `PUT /v2.2/numbers/{number}/route`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NumberRouteRequest {
-    /// New route ID.
+    /// Global route type to install: `1` USER, `2` T30, `3` VOICE_BRIDGE,
+    /// `4` DID (default), `5` T38, `6` VOICEML, `8` SDN, `9` MOBILE.
     pub route: i32,
 }
 
@@ -98,7 +101,9 @@ pub struct NumberMoveRequest {
     /// Destination account ID.
     #[serde(rename = "accountId")]
     pub account_id: i64,
-    /// Route ID to install on the destination account.
+    /// Route on the destination account after the move — global route type:
+    /// `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID (default), `5` T38,
+    /// `6` VOICEML, `8` SDN, `9` MOBILE.
     pub route: i32,
 }
 
@@ -118,7 +123,8 @@ pub struct NumberDetail {
     pub number: String,
     /// DNIS translation in effect.
     pub translated: String,
-    /// Gateway route ID.
+    /// Global route type: `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID
+    /// (default), `5` T38, `6` VOICEML, `8` SDN, `9` MOBILE.
     pub route: i32,
     /// Gateway IP/hostname, if any.
     pub gateway: Option<String>,
@@ -235,7 +241,9 @@ pub struct NumberMessagingState {
 pub struct NumberAddData {
     /// 10-digit TN.
     pub number: String,
-    /// Route ID that was installed.
+    /// Global route type that was installed: `1` USER, `2` T30,
+    /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// `9` MOBILE.
     pub route: i32,
 }
 
@@ -305,7 +313,9 @@ pub struct NumberMoveData {
     /// Destination account ID.
     #[serde(rename = "accountId")]
     pub account_id: i64,
-    /// Route ID installed on the destination.
+    /// Global route type installed on the destination: `1` USER, `2` T30,
+    /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// `9` MOBILE.
     pub route: i32,
 }
 
@@ -315,7 +325,9 @@ pub struct NumberMoveData {
 pub struct NumberRouteData {
     /// 10-digit TN.
     pub number: String,
-    /// Route ID that was installed.
+    /// Echo of the applied global route type: `1` USER, `2` T30,
+    /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// `9` MOBILE.
     pub route: i32,
 }
 
