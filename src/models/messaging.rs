@@ -98,7 +98,7 @@ pub struct MessageRecordValue {
     pub rate: Option<String>,
     /// Far-end number (sms/mms only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub number: Option<i64>,
+    pub number: Option<String>,
     /// Message body (sms/mms only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
@@ -117,6 +117,7 @@ pub struct MessageRecord {
 
 /// Response data for `GET /v2.2/messages`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MessageHistoryData {
     /// Number filter echoed back.
     pub number: String,
@@ -135,6 +136,7 @@ pub struct MessageHistoryData {
 
 /// Response data for `POST /v2.2/messages`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MessageSendData {
     /// Provider transaction ID.
     pub id: String,
@@ -159,6 +161,7 @@ pub struct MessageSendData {
 
 /// Status payload for brand registration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct BrandRegistrationResult {
     /// HTTP status code as string (`200` on success).
     #[serde(rename = "statusCode")]
@@ -169,6 +172,7 @@ pub struct BrandRegistrationResult {
 
 /// Response data for `POST /v2.2/messaging/brands`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MessagingBrandCreateData {
     /// Status payload.
     pub result: BrandRegistrationResult,
@@ -176,6 +180,7 @@ pub struct MessagingBrandCreateData {
 
 /// Status payload for campaign registration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CampaignRegistrationResult {
     /// HTTP status code as string.
     #[serde(rename = "statusCode")]
@@ -186,6 +191,7 @@ pub struct CampaignRegistrationResult {
 
 /// Response data for `POST /v2.2/messaging/campaigns`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MessagingCampaignCreateData {
     /// Status payload.
     pub result: CampaignRegistrationResult,
@@ -193,6 +199,7 @@ pub struct MessagingCampaignCreateData {
 
 /// One carrier's latest DCA decision in [`CampaignDca`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CampaignDcaCarrier {
     /// Carrier name (e.g. `T-Mobile`).
     pub carrier: String,
@@ -209,6 +216,7 @@ pub struct CampaignDcaCarrier {
 /// Carrier (DCA) review progress for a campaign; `None` for
 /// `CAMPAIGN_INVALID_ID`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CampaignDca {
     /// `true` once every carrier has a DCA assigned to review the campaign.
     #[serde(rename = "electionComplete")]
@@ -227,6 +235,7 @@ pub struct CampaignDca {
 
 /// One campaign and its currently-bound numbers.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CampaignStatusItem {
     /// 7-character TCR campaign ID.
     pub id: String,
@@ -247,20 +256,21 @@ pub struct CampaignStatusItem {
 
 /// Response data for `GET /v2.2/messaging/campaigns`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MessagingCampaignStatusData {
     /// Per-campaign rows.
     pub campaigns: Vec<CampaignStatusItem>,
 }
 
-/// Optional query filters for `MessagingService::history`.
+/// Query parameters for `MessagingService::history` (`GET /v2.2/messages`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HistoryOptions {
-    /// 10-digit TN whose history to fetch.
-    pub number: Option<String>,
-    /// Unix-seconds range start.
-    pub start: Option<i64>,
-    /// Unix-seconds range end (older than `start`).
-    pub end: Option<i64>,
-    /// `sms`, `mms`, or `dlr`.
+    /// 10-digit TN on the authenticated account (required).
+    pub number: String,
+    /// Unix-timestamp range start (newer). Server default: now.
+    pub from: Option<i64>,
+    /// Unix-timestamp range end (older than `from`). Server default: 24h ago.
+    pub to: Option<i64>,
+    /// `sms` (default), `mms`, or `dlr` (delivery-status events).
     pub kind: Option<String>,
 }

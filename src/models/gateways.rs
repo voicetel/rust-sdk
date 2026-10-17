@@ -52,6 +52,7 @@ pub struct GatewayEntry {
 
 /// One number bound to a gateway, returned by `GET /v2.2/gateways/{id}/numbers`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct GatewayNumberSummary {
     /// 10-digit TN.
     pub number: String,
@@ -76,6 +77,7 @@ pub struct GatewayNumberSummary {
 
 /// Response data for `GET /v2.2/gateways`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct GatewaysListData {
     /// Every gateway on the account.
     pub gateways: Vec<GatewayEntry>,
@@ -83,6 +85,7 @@ pub struct GatewaysListData {
 
 /// Response data for `GET /v2.2/gateways/{id}/numbers`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct GatewayNumbersData {
     /// Every number routed through this gateway.
     pub numbers: Vec<GatewayNumberSummary>,

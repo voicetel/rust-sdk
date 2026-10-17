@@ -14,7 +14,8 @@ async fn support_list_get_create_update_delete() {
         .and(path("/v2.2/support/tickets"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-                "tickets": [{"status": "active", "number": 1015}]
+                "tickets": [{"status": "active", "number": 1015}],
+                "totalCount": 1
             }))),
         )
         .mount(&server)
@@ -56,6 +57,7 @@ async fn support_list_get_create_update_delete() {
 
     let list = c.support().list().await.unwrap();
     assert_eq!(list.tickets[0].ticket_number, Some(1015));
+    assert_eq!(list.total_count, Some(1));
 
     let one = c.support().get(7).await.unwrap();
     assert_eq!(one.ticket.ticket_number, Some(1015));

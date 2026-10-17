@@ -4,7 +4,7 @@ mod common;
 use common::{envelope, test_client};
 
 use voicetel::models::numbers::*;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -309,6 +309,7 @@ async fn numbers_messaging_lifecycle() {
         .await;
     Mock::given(method("DELETE"))
         .and(path("/v2.2/numbers/2015550123/messaging-campaign"))
+        .and(query_param("campaignId", "CAMP002"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
             "number": "2015550123", "campaignId": "CAMP002", "network": "C", "upstreamCnpId": "BANDW", "unassigned": true
         }))))
@@ -316,6 +317,8 @@ async fn numbers_messaging_lifecycle() {
         .await;
     Mock::given(method("DELETE"))
         .and(path("/v2.2/numbers/messaging-campaign"))
+        .and(query_param("numbers", "2015550123,2015555678"))
+        .and(query_param("campaignId", "CAMP002"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
             "campaignId": "CAMP002", "network": "C", "upstreamCnpId": "BANDW", "unassignedNumbers": ["2015550123"], "failed": []
         }))))
@@ -368,11 +371,15 @@ async fn numbers_messaging_lifecycle() {
         a.job.as_ref().unwrap().state,
         MessagingEnablementJobState::Queued
     );
-    let u = c.numbers().unassign_campaign("2015550123").await.unwrap();
+    let u = c
+        .numbers()
+        .unassign_campaign("2015550123", "CAMP002")
+        .await
+        .unwrap();
     assert!(u.unassigned);
     let bu = c
         .numbers()
-        .bulk_unassign_campaign(vec!["2015550123".into()])
+        .bulk_unassign_campaign(&["2015550123".into(), "2015555678".into()], "CAMP002")
         .await
         .unwrap();
     assert_eq!(bu.unassigned_numbers.len(), 1);
@@ -386,6 +393,23 @@ async fn numbers_messaging_lifecycle() {
         .unwrap();
     assert_eq!(pin.port_out_pin, "1234");
     assert!(pin.changed);
+}
+
+#[tokio::test]
+async fn path_segments_are_percent_encoded() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/numbers/201%2F555"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "number": "201/555"
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let one = c.numbers().get("201/555").await.unwrap();
+    assert_eq!(one.number, "201/555");
 }
 
 #[tokio::test]

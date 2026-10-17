@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Response data for `GET /v2.2/cnam/{number}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CnamData {
     /// Display name on file, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -49,6 +50,7 @@ pub struct LrnData {
 
 /// Response data for `GET /v2.2/lrn/{number}/{ani}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct LrnLookupData {
     /// Echoed ANI.
     pub ani: String,

@@ -3,13 +3,16 @@
 use std::error::Error;
 
 use voicetel::models::account::AccountServices;
-use voicetel::models::inumbering::{OrderNumber, PortAvailabilityData, PortSummary};
-use voicetel::models::messaging::MessageSendRequest;
-use voicetel::models::numbers::{
-    CampaignAssignStatus, MessagingEnablementJob, MessagingEnablementJobState,
-    NumberMessagingCampaignAssignData, NumberMoveData, OrderId, PortOutPinUpdateData,
+use voicetel::models::inumbering::{
+    OrderNumber, PortAvailabilityData, PortSubmitData, PortSummary,
 };
-use voicetel::models::support::SupportConversation;
+use voicetel::models::messaging::{MessageHistoryData, MessageSendRequest};
+use voicetel::models::numbers::{
+    CampaignAssignStatus, MessagingEnablementJob, MessagingEnablementJobState, NumberDetail,
+    NumberMessagingCampaignAssignData, NumberMessagingState, NumberMoveData, OrderId,
+    PortOutPinUpdateData,
+};
+use voicetel::models::support::{SupportConversation, SupportThread, TicketsListData};
 use voicetel::{ApiError, Client, ErrorKind, DEFAULT_BASE_URL, SDK_VERSION};
 
 #[test]
@@ -240,6 +243,32 @@ fn port_summary_no_longer_has_support_url() {
     assert_eq!(p.status, "active");
     let v = serde_json::to_value(&p).unwrap();
     assert!(v.get("supportUrl").is_none());
+}
+
+#[test]
+fn response_models_tolerate_missing_fields() {
+    // The spec marks almost nothing `required`; an omitted server field must
+    // not fail the whole decode.
+    let n: NumberDetail = serde_json::from_str("{}").unwrap();
+    assert_eq!(n.number, "");
+    let m: NumberMessagingState = serde_json::from_str("{}").unwrap();
+    assert!(!m.enabled);
+    let t: SupportThread = serde_json::from_str("{}").unwrap();
+    assert_eq!(t.status, "");
+    let h: MessageHistoryData = serde_json::from_str("{}").unwrap();
+    assert!(h.messages.is_empty());
+    let p: PortSubmitData = serde_json::from_str("{}").unwrap();
+    assert_eq!(p.pid, "");
+}
+
+#[test]
+fn tickets_list_data_reads_total_count() {
+    let raw = r#"{"tickets": [{"status": "active", "number": 1015}], "totalCount": 42}"#;
+    let d: TicketsListData = serde_json::from_str(raw).unwrap();
+    assert_eq!(d.total_count, Some(42));
+    assert_eq!(d.tickets.len(), 1);
+    let v = serde_json::to_value(&d).unwrap();
+    assert_eq!(v.get("totalCount").and_then(|x| x.as_i64()), Some(42));
 }
 
 #[test]

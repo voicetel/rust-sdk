@@ -46,22 +46,32 @@ async fn message_history() {
         .and(path("/v2.2/messages"))
         .and(query_param("number", "2015550123"))
         .and(query_param("type", "sms"))
+        .and(query_param("from", "1747345200"))
+        .and(query_param("to", "1747258800"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
                 "number": "2015550123", "type": "sms",
-                "fromTs": 0, "toTs": 1, "messages": []
+                "fromTs": 1747345200, "toTs": 1747258800,
+                "messages": [{
+                    "id": "41946b69",
+                    "key": ["2015550123", 1747345200],
+                    "value": {"direction": "in", "number": "2015550199", "message": "hi", "rate": "0.0150"}
+                }]
             }))),
         )
         .mount(&server)
         .await;
     let c = test_client(&server).await;
     let opts = HistoryOptions {
-        number: Some("2015550123".into()),
+        number: "2015550123".into(),
+        from: Some(1747345200),
+        to: Some(1747258800),
         kind: Some("sms".into()),
-        ..Default::default()
     };
     let out = c.messaging().history(&opts).await.unwrap();
     assert_eq!(out.kind, "sms");
+    // v2.2.15: the far-end `number` inside a message record is a string.
+    assert_eq!(out.messages[0].value.number.as_deref(), Some("2015550199"));
 }
 
 #[tokio::test]
@@ -87,6 +97,7 @@ async fn brand_and_campaign() {
         .await;
     Mock::given(method("GET"))
         .and(path("/v2.2/messaging/campaigns"))
+        .and(query_param("ids", "CAMP002,NOEXIST"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
                 "campaigns": [
@@ -135,7 +146,11 @@ async fn brand_and_campaign() {
         .unwrap();
     assert_eq!(camp.result.status, "Success");
 
-    let status = c.messaging().campaign_status().await.unwrap();
+    let status = c
+        .messaging()
+        .campaign_status(&["CAMP002".into(), "NOEXIST".into()])
+        .await
+        .unwrap();
     assert_eq!(status.campaigns.len(), 2);
     let ready = &status.campaigns[0];
     assert_eq!(ready.status, "CAMPAIGN_DCA_COMPLETE");

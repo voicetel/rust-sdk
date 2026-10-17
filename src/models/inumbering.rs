@@ -205,6 +205,7 @@ pub struct PortSubmitRequest {
 
 /// One TN available for assignment.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct InventoryItem {
     /// 10-digit TN.
     pub number: String,
@@ -222,6 +223,7 @@ pub struct InventoryItem {
 /// One aggregated availability bucket. Which fields are populated depends on
 /// the `countBy` dimension supplied in the query.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct InventoryCoverageItem {
     /// Bucket count.
     pub count: i64,
@@ -250,6 +252,7 @@ pub struct InventoryCoverageItem {
 
 /// One row in the port-status list.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortSummary {
     /// Port status word.
     pub status: String,
@@ -272,6 +275,7 @@ pub struct PortSummary {
 
 /// Full record for a single port-in.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortDetail {
     /// Port status word.
     pub status: String,
@@ -303,6 +307,7 @@ pub struct PortDetail {
 
 /// Response data for `GET /v2.2/inventory`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct InventorySearchData {
     /// Inventory results.
     pub numbers: Vec<InventoryItem>,
@@ -310,13 +315,15 @@ pub struct InventorySearchData {
 
 /// Response data for `GET /v2.2/inventory/coverage`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct InventoryCoverageData {
     /// Aggregated availability buckets.
     pub coverage: Vec<InventoryCoverageItem>,
 }
 
 /// One row in [`OrderCreateData::failed`].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct OrderFailedEntry {
     /// 10-digit TN that failed.
     pub number: String,
@@ -326,6 +333,7 @@ pub struct OrderFailedEntry {
 
 /// Response data for `POST /v2.2/orders`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct OrderCreateData {
     /// Server-assigned order ID.
     #[serde(rename = "orderId")]
@@ -343,6 +351,7 @@ pub struct OrderCreateData {
 
 /// Response data for `GET /v2.2/ports`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortListData {
     /// Port-in records on the account.
     pub ports: Vec<PortSummary>,
@@ -350,6 +359,7 @@ pub struct PortListData {
 
 /// Response data for `GET /v2.2/ports/{id}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortDetailData {
     /// Port detail.
     pub port: PortDetail,
@@ -357,6 +367,7 @@ pub struct PortDetailData {
 
 /// Response data for `POST /v2.2/ports`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortSubmitData {
     /// 5-character port order ID.
     pub pid: String,
@@ -375,6 +386,7 @@ pub struct PortSubmitData {
 /// Response data for `GET /v2.2/ports/availability/{number}` — includes v2.2.10
 /// fields `local_routing_number` and `rate_center_tier`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortAvailabilityData {
     /// TN queried.
     pub number: String,
@@ -393,30 +405,65 @@ pub struct PortAvailabilityData {
     pub reason: Option<String>,
 }
 
-/// Query filters for `INumberingService::search_inventory`.
+/// Query filters for `INumberingService::search_inventory`
+/// (`GET /v2.2/inventory`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InventoryQuery {
-    /// 3-digit area code.
-    pub npa: Option<i32>,
-    /// 3-digit exchange.
-    pub nxx: Option<i32>,
-    /// Two-letter state code.
-    pub state: Option<String>,
+    /// Prefix or wildcard pattern — `201`, `201555`, `201555*` (required).
+    pub tn_mask: String,
+    /// Maximum results, 1–1000 (server default 10).
+    pub quantity: Option<i32>,
+    /// Two-letter US state or Canadian province code.
+    pub province: Option<String>,
     /// Rate-center name.
     pub rate_center: Option<String>,
-    /// Substring TNs must contain.
-    pub contains: Option<String>,
-    /// Suffix TNs must end with.
-    pub ends_with: Option<String>,
-    /// Max results.
-    pub limit: Option<i32>,
+    /// LATA code.
+    pub lata: Option<String>,
 }
 
-/// Query filters for `INumberingService::coverage`.
+/// Aggregation dimension for `INumberingService::coverage`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CoverageCountBy {
+    /// Bucket by state/province.
+    #[default]
+    State,
+    /// Bucket by city.
+    City,
+    /// Bucket by rate center.
+    RateCenter,
+    /// Bucket by NPA/NXX.
+    NpaNxx,
+    /// Bucket by thousands-block.
+    Block,
+}
+
+impl CoverageCountBy {
+    /// Wire value of the `countBy` query parameter.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::State => "state",
+            Self::City => "city",
+            Self::RateCenter => "rateCenter",
+            Self::NpaNxx => "npanxx",
+            Self::Block => "block",
+        }
+    }
+}
+
+/// Query filters for `INumberingService::coverage`
+/// (`GET /v2.2/inventory/coverage`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CoverageQuery {
-    /// Two-letter state code.
-    pub state: Option<String>,
-    /// Rate-center name.
-    pub rate_center: Option<String>,
+    /// Aggregation dimension (required).
+    pub count_by: CoverageCountBy,
+    /// Filter: state or province code (e.g. `NJ`).
+    pub loc_state: Option<String>,
+    /// Filter: city name.
+    pub city: Option<String>,
+    /// Filter: rate-center abbreviation.
+    pub rc_abbre: Option<String>,
+    /// Filter: area code.
+    pub npa: Option<String>,
+    /// Filter: LATA code.
+    pub lata: Option<String>,
 }

@@ -5,6 +5,7 @@ use reqwest::Method;
 use crate::client::Client;
 use crate::error::ApiError;
 use crate::models::e911::*;
+use crate::transport::encode_path_segment;
 
 /// Handle for the `e911` resource.
 #[derive(Debug)]
@@ -45,7 +46,7 @@ impl<'c> E911Service<'c> {
 
     /// `GET /v2.2/e911/{dn}` — fetch the e911 record for `dn`.
     pub async fn get(&self, dn: &str) -> Result<E911RecordData, ApiError> {
-        let path = format!("/v2.2/e911/{}", dn);
+        let path = format!("/v2.2/e911/{}", encode_path_segment(dn));
         self.client
             .transport
             .request::<(), E911RecordData>(Method::GET, &path, &[], None, true)
@@ -58,7 +59,7 @@ impl<'c> E911Service<'c> {
         dn: &str,
         body: &E911ProvisionByIdRequest,
     ) -> Result<E911RecordData, ApiError> {
-        let path = format!("/v2.2/e911/{}", dn);
+        let path = format!("/v2.2/e911/{}", encode_path_segment(dn));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -67,7 +68,7 @@ impl<'c> E911Service<'c> {
 
     /// `DELETE /v2.2/e911/{dn}` — remove the e911 record. Returns `()` on 204.
     pub async fn remove(&self, dn: &str) -> Result<(), ApiError> {
-        let path = format!("/v2.2/e911/{}", dn);
+        let path = format!("/v2.2/e911/{}", encode_path_segment(dn));
         self.client
             .transport
             .request_no_content::<()>(Method::DELETE, &path, &[], None, true)

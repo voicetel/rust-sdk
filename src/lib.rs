@@ -19,7 +19,7 @@
 //!         .build()?;
 //!
 //!     // Exchange username + password for an API key (one-time per session).
-//!     client.login(1_000_000_001, "hunter2").await?;
+//!     client.login("1000000001", "hunter2").await?;
 //!
 //!     // Typed responses — your IDE knows what `me` is.
 //!     let me = client.account().get().await?;
@@ -36,11 +36,12 @@
 //!
 //! ## Authentication
 //!
-//! Every endpoint requires `Authorization: Bearer <apikey>` except
-//! `POST /v2.2/account/api-key`, which exchanges `{username, password}` for
-//! a fresh 32-hex key. [`Client::login`] handles the exchange and installs
-//! the key on the transport. If you already have a key, pass it via
-//! [`ClientBuilder::api_key`].
+//! Every endpoint requires `Authorization: Bearer <apikey>` except the three
+//! public ones — `POST /v2.2/account/api-key` (exchanges `{username,
+//! password}` for a fresh 32-hex key), `POST /v2.2/accounts` (signup), and
+//! `POST /v2.2/account/recovery` (password recovery). [`Client::login`]
+//! handles the key exchange and installs the key on the transport. If you
+//! already have a key, pass it via [`ClientBuilder::api_key`].
 //!
 //! ## Error handling
 //!

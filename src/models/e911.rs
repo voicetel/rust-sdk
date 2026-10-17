@@ -90,6 +90,7 @@ pub struct E911ValidatedAddress {
 
 /// Response data for `GET /v2.2/e911`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct E911AllData {
     /// Every e911 record on the account.
     pub records: Vec<E911Entry>,
@@ -97,6 +98,7 @@ pub struct E911AllData {
 
 /// Response data for `GET /v2.2/e911/{dn}`, `POST /v2.2/e911`, and `PUT /v2.2/e911/{dn}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct E911RecordData {
     /// The record returned.
     pub record: E911Entry,
@@ -104,6 +106,7 @@ pub struct E911RecordData {
 
 /// Response data for `POST /v2.2/e911/validations`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct E911ValidateData {
     /// Validated address with its assigned ID.
     pub address: E911ValidatedAddress,

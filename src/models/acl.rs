@@ -4,15 +4,17 @@ use serde::{Deserialize, Serialize};
 
 use super::common::CidrEntry;
 
-/// Body for `POST /v2.2/acl` (add) and `DELETE /v2.2/acl` (remove).
+/// Body for `POST /v2.2/acl` (add). Removal uses a `cidrs` query parameter
+/// instead — see [`AclService::remove`](crate::resources::acl::AclService::remove).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AclModifyRequest {
-    /// CIDR entries to add or remove.
+    /// CIDR entries to add.
     pub acl: Vec<CidrEntry>,
 }
 
 /// Response data for `GET /v2.2/acl`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AclListData {
     /// Current allowlist.
     pub acl: Vec<CidrEntry>,
@@ -20,6 +22,7 @@ pub struct AclListData {
 
 /// Response data for `POST /v2.2/acl`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AclAddData {
     /// CIDR entries the server actually added.
     pub added: Vec<CidrEntry>,
@@ -27,6 +30,7 @@ pub struct AclAddData {
 
 /// Response data for `DELETE /v2.2/acl`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AclRemoveData {
     /// CIDR entries the server actually removed.
     pub removed: Vec<CidrEntry>,
@@ -38,7 +42,8 @@ pub struct AclRemoveData {
 /// - `DB delete failed`
 /// - `Invalid mask: must be /8, /16, /24, or /32`
 /// - `CIDR range must be routable`
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AclFailedEntry {
     /// CIDR that failed.
     pub cidr: String,

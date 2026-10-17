@@ -29,11 +29,14 @@ impl<'c> AclService<'c> {
             .await
     }
 
-    /// `DELETE /v2.2/acl` — remove CIDR entries. Returns 200 with a body (not 204).
-    pub async fn remove(&self, body: &AclModifyRequest) -> Result<AclRemoveData, ApiError> {
+    /// `DELETE /v2.2/acl` — remove CIDR entries. The entries go in the
+    /// required `cidrs` query parameter (comma-separated); DELETE carries no
+    /// body. Returns 200 with a body (not 204).
+    pub async fn remove(&self, cidrs: &[String]) -> Result<AclRemoveData, ApiError> {
+        let q = vec![("cidrs", cidrs.join(","))];
         self.client
             .transport
-            .request(Method::DELETE, "/v2.2/acl", &[], Some(body), true)
+            .request::<(), AclRemoveData>(Method::DELETE, "/v2.2/acl", &q, None, true)
             .await
     }
 }

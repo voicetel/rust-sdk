@@ -11,8 +11,8 @@
 //!
 //! Strict rules in this file:
 //!  - No state mutations. No POST/PUT/PATCH/DELETE (except `Login` itself).
-//!  - Login + account/registration + account/cdr + account/recurring-charges +
-//!    account/payments all share a 6/hr/IP rate limit. Run sparingly.
+//!  - Login + account info + account/cdr + account/recurring-charges are
+//!    rate-limited to 6/hr/IP each. Run sparingly.
 
 use std::env;
 use std::time::Duration;
@@ -36,13 +36,12 @@ async fn integration_client() -> Option<Client> {
         }
     };
     let base = env::var("VOICETEL_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-    let uid: u64 = user.parse().expect("VOICETEL_USERNAME must be numeric");
     let client = Client::builder()
         .base_url(base)
         .timeout(Duration::from_secs(30))
         .build()
         .unwrap();
-    client.login(uid, &pass).await.expect("login");
+    client.login(&user, &pass).await.expect("login");
     Some(client)
 }
 
@@ -73,8 +72,7 @@ async fn read_only_lists_live() {
         .expect("INumbering.coverage");
     c.i_numbering().ports().await.expect("INumbering.ports");
     c.authentication().get().await.expect("Authentication.get");
-    c.messaging()
-        .campaign_status()
-        .await
-        .expect("Messaging.campaign_status");
+    // Messaging.campaign_status is exercised in the wiremock suite — it needs
+    // real campaign ids (the `ids` query parameter is required), which a
+    // read-only smoke test cannot invent.
 }

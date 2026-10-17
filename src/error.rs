@@ -69,15 +69,16 @@ impl fmt::Display for ErrorKind {
 ///
 /// Inspect `kind` to branch on the failure mode. `body` preserves the raw
 /// response text — particularly useful on 409 conflicts where the server
-/// returns a structured detail block (see `AclConflictData`).
+/// returns a structured detail block; [`Self::acl_conflict`] and
+/// [`Self::auth_put_conflict`] decode those into typed models.
 #[derive(Debug)]
 pub struct ApiError {
     /// Typed classification of the failure.
     pub kind: ErrorKind,
     /// HTTP status code, or `0` for transport-level failures.
     pub status_code: u16,
-    /// `code` / `error` field extracted from the JSON error body when present.
-    pub code: Option<String>,
+    /// Integer `error.code` from the spec error envelope, when present.
+    pub code: Option<i64>,
     /// Human-readable message describing the failure.
     pub message: String,
     /// Raw response body as a string, when one was received.
@@ -91,7 +92,7 @@ impl ApiError {
     /// message, and raw response body.
     pub fn from_status(
         status: u16,
-        code: Option<String>,
+        code: Option<i64>,
         message: impl Into<String>,
         body: Option<String>,
     ) -> Self {
@@ -165,6 +166,33 @@ impl ApiError {
     /// `true` when [`Self::kind`] is [`ErrorKind::Conflict`].
     pub fn is_conflict(&self) -> bool {
         self.kind == ErrorKind::Conflict
+    }
+
+    /// Decode the structured detail block of a 409 from `POST`/`DELETE
+    /// `/v2.2/acl` ([`AclConflictData`](crate::models::acl::AclConflictData):
+    /// entries added/removed before the conflict plus the rejected ones).
+    /// Returns `None` unless this is a 409 with a parseable `data` object.
+    pub fn acl_conflict(&self) -> Option<crate::models::acl::AclConflictData> {
+        if self.status_code != 409 {
+            return None;
+        }
+        let body = self.body.as_deref()?;
+        let value: serde_json::Value = serde_json::from_str(body).ok()?;
+        serde_json::from_value(value.get("data")?.clone()).ok()
+    }
+
+    /// Decode the structured detail block of a 409 from `PUT /v2.2/auth`
+    /// ([`AuthPutConflictData`](crate::models::authentication::AuthPutConflictData):
+    /// the fields applied before the conflict, plus per-field rejections).
+    /// Returns `None` unless this is a 409 with a parseable body.
+    pub fn auth_put_conflict(&self) -> Option<crate::models::authentication::AuthPutConflictData> {
+        if self.status_code != 409 {
+            return None;
+        }
+        let body = self.body.as_deref()?;
+        let value: serde_json::Value = serde_json::from_str(body).ok()?;
+        // `updated` / `errors` sit at the top level of the auth-conflict body.
+        serde_json::from_value(value).ok()
     }
 
     /// Attach (or clear) the underlying source error. `pub(crate)` because

@@ -34,6 +34,7 @@ pub struct AuthPutRequest {
 
 /// Response data for `GET /v2.2/auth`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AuthGetData {
     /// Currently-active auth mode: `0` = Digest, `1` = Lax (Digest | IP),
     /// `2` = IP, `3` = Strict (Digest + IP) (see [`auth_type`]).
@@ -58,15 +59,30 @@ pub struct AuthUpdatedEntry {
 
 /// Response data for `PUT /v2.2/auth`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AuthPutData {
     /// Fields the server applied.
     pub updated: Vec<AuthUpdatedEntry>,
 }
 
-/// Data payload returned in a 409 from `PUT /v2.2/auth`.
+/// One per-field rejection inside a 409 from `PUT /v2.2/auth`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct AuthConflictError {
+    /// Rejected field — `authType` or `password`.
+    pub field: String,
+    /// Why the field was rejected.
+    pub message: String,
+}
+
+/// Data payload returned in a 409 from `PUT /v2.2/auth` — the fields applied
+/// before the conflict plus the per-field rejections.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AuthPutConflictData {
     /// Fields the server applied before the conflict.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated: Option<Vec<AuthUpdatedEntry>>,
+    /// Per-field rejections.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub errors: Option<Vec<AuthConflictError>>,
 }

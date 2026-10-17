@@ -5,6 +5,7 @@ use reqwest::Method;
 use crate::client::Client;
 use crate::error::ApiError;
 use crate::models::numbers::*;
+use crate::transport::encode_path_segment;
 
 /// Handle for the `Numbers` resource — the largest surface in the SDK.
 #[derive(Debug)]
@@ -31,7 +32,7 @@ impl<'c> NumbersService<'c> {
 
     /// `GET /v2.2/numbers/{number}` — fetch one TN.
     pub async fn get(&self, number: &str) -> Result<NumberDetail, ApiError> {
-        let path = format!("/v2.2/numbers/{}", number);
+        let path = format!("/v2.2/numbers/{}", encode_path_segment(number));
         self.client
             .transport
             .request::<(), NumberDetail>(Method::GET, &path, &[], None, true)
@@ -40,7 +41,7 @@ impl<'c> NumbersService<'c> {
 
     /// `DELETE /v2.2/numbers/{number}` — detach a TN. Returns `()` on 204.
     pub async fn remove(&self, number: &str) -> Result<(), ApiError> {
-        let path = format!("/v2.2/numbers/{}", number);
+        let path = format!("/v2.2/numbers/{}", encode_path_segment(number));
         self.client
             .transport
             .request_no_content::<()>(Method::DELETE, &path, &[], None, true)
@@ -53,7 +54,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberMoveRequest,
     ) -> Result<NumberMoveData, ApiError> {
-        let path = format!("/v2.2/numbers/{}", number);
+        let path = format!("/v2.2/numbers/{}", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PATCH, &path, &[], Some(body), true)
@@ -62,7 +63,7 @@ impl<'c> NumbersService<'c> {
 
     /// `POST /v2.2/numbers/{number}/release` — return a TN to the network. 204.
     pub async fn release(&self, number: &str) -> Result<(), ApiError> {
-        let path = format!("/v2.2/numbers/{}/release", number);
+        let path = format!("/v2.2/numbers/{}/release", encode_path_segment(number));
         self.client
             .transport
             .request_no_content::<()>(Method::POST, &path, &[], None, true)
@@ -75,7 +76,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberRouteRequest,
     ) -> Result<NumberRouteData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/route", number);
+        let path = format!("/v2.2/numbers/{}/route", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -88,7 +89,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberTranslationRequest,
     ) -> Result<NumberTranslationData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/translation", number);
+        let path = format!("/v2.2/numbers/{}/translation", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -101,7 +102,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberCnamRequest,
     ) -> Result<NumberCnamData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/cnam", number);
+        let path = format!("/v2.2/numbers/{}/cnam", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -114,7 +115,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberLidbRequest,
     ) -> Result<NumberLidbData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/lidb", number);
+        let path = format!("/v2.2/numbers/{}/lidb", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -123,7 +124,7 @@ impl<'c> NumbersService<'c> {
 
     /// `GET /v2.2/numbers/{number}/fax` — read fax-to-email routing.
     pub async fn get_fax(&self, number: &str) -> Result<NumberFaxData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/fax", number);
+        let path = format!("/v2.2/numbers/{}/fax", encode_path_segment(number));
         self.client
             .transport
             .request::<(), NumberFaxData>(Method::GET, &path, &[], None, true)
@@ -136,7 +137,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberFaxRequest,
     ) -> Result<NumberFaxData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/fax", number);
+        let path = format!("/v2.2/numbers/{}/fax", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -145,7 +146,7 @@ impl<'c> NumbersService<'c> {
 
     /// `DELETE /v2.2/numbers/{number}/fax` — disable fax-to-email. 204.
     pub async fn remove_fax(&self, number: &str) -> Result<(), ApiError> {
-        let path = format!("/v2.2/numbers/{}/fax", number);
+        let path = format!("/v2.2/numbers/{}/fax", encode_path_segment(number));
         self.client
             .transport
             .request_no_content::<()>(Method::DELETE, &path, &[], None, true)
@@ -158,7 +159,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberForwardRequest,
     ) -> Result<NumberForwardData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/forward", number);
+        let path = format!("/v2.2/numbers/{}/forward", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -167,7 +168,7 @@ impl<'c> NumbersService<'c> {
 
     /// `DELETE /v2.2/numbers/{number}/forward` — disable call forwarding. 204.
     pub async fn remove_forward(&self, number: &str) -> Result<(), ApiError> {
-        let path = format!("/v2.2/numbers/{}/forward", number);
+        let path = format!("/v2.2/numbers/{}/forward", encode_path_segment(number));
         self.client
             .transport
             .request_no_content::<()>(Method::DELETE, &path, &[], None, true)
@@ -176,7 +177,7 @@ impl<'c> NumbersService<'c> {
 
     /// `GET /v2.2/numbers/{number}/sms` — read SMS routing.
     pub async fn get_sms(&self, number: &str) -> Result<NumberSmsData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/sms", number);
+        let path = format!("/v2.2/numbers/{}/sms", encode_path_segment(number));
         self.client
             .transport
             .request::<(), NumberSmsData>(Method::GET, &path, &[], None, true)
@@ -189,7 +190,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberSmsRequest,
     ) -> Result<NumberSmsData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/sms", number);
+        let path = format!("/v2.2/numbers/{}/sms", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -198,7 +199,7 @@ impl<'c> NumbersService<'c> {
 
     /// `DELETE /v2.2/numbers/{number}/sms` — clear SMS routing. 204.
     pub async fn remove_sms(&self, number: &str) -> Result<(), ApiError> {
-        let path = format!("/v2.2/numbers/{}/sms", number);
+        let path = format!("/v2.2/numbers/{}/sms", encode_path_segment(number));
         self.client
             .transport
             .request_no_content::<()>(Method::DELETE, &path, &[], None, true)
@@ -207,7 +208,7 @@ impl<'c> NumbersService<'c> {
 
     /// `GET /v2.2/numbers/{number}/messaging` — messaging state for one TN.
     pub async fn get_messaging(&self, number: &str) -> Result<NumberMessagingState, ApiError> {
-        let path = format!("/v2.2/numbers/{}/messaging", number);
+        let path = format!("/v2.2/numbers/{}/messaging", encode_path_segment(number));
         self.client
             .transport
             .request::<(), NumberMessagingState>(Method::GET, &path, &[], None, true)
@@ -220,7 +221,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberMessagingPatchRequest,
     ) -> Result<NumberMessagingPatchData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/messaging", number);
+        let path = format!("/v2.2/numbers/{}/messaging", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PATCH, &path, &[], Some(body), true)
@@ -233,7 +234,10 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &NumberCampaignAssignRequest,
     ) -> Result<NumberMessagingCampaignAssignData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/messaging-campaign", number);
+        let path = format!(
+            "/v2.2/numbers/{}/messaging-campaign",
+            encode_path_segment(number)
+        );
         self.client
             .transport
             .request(Method::PUT, &path, &[], Some(body), true)
@@ -241,37 +245,49 @@ impl<'c> NumbersService<'c> {
     }
 
     /// `DELETE /v2.2/numbers/{number}/messaging-campaign` — unbind a campaign.
+    /// `campaign_id` is a required query parameter (DELETE carries no body).
     /// Returns 200 with a body.
     pub async fn unassign_campaign(
         &self,
         number: &str,
+        campaign_id: &str,
     ) -> Result<NumberMessagingCampaignUnassignData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/messaging-campaign", number);
+        let path = format!(
+            "/v2.2/numbers/{}/messaging-campaign",
+            encode_path_segment(number)
+        );
+        let q = vec![("campaignId", campaign_id.to_string())];
         self.client
             .transport
             .request::<(), NumberMessagingCampaignUnassignData>(
                 Method::DELETE,
                 &path,
-                &[],
+                &q,
                 None,
                 true,
             )
             .await
     }
 
-    /// `DELETE /v2.2/numbers/messaging-campaign` — bulk unbind. Returns 200 with a body.
+    /// `DELETE /v2.2/numbers/messaging-campaign` — bulk unbind. `numbers`
+    /// (comma-joined, max 1000) and `campaign_id` are required query
+    /// parameters; DELETE carries no body. Returns 200 with a body.
     pub async fn bulk_unassign_campaign(
         &self,
-        numbers: Vec<String>,
+        numbers: &[String],
+        campaign_id: &str,
     ) -> Result<NumbersMessagingCampaignUnassignData, ApiError> {
-        let body = BulkUnassignRequest { numbers };
+        let q = vec![
+            ("numbers", numbers.join(",")),
+            ("campaignId", campaign_id.to_string()),
+        ];
         self.client
             .transport
-            .request(
+            .request::<(), NumbersMessagingCampaignUnassignData>(
                 Method::DELETE,
                 "/v2.2/numbers/messaging-campaign",
-                &[],
-                Some(&body),
+                &q,
+                None,
                 true,
             )
             .await
@@ -283,7 +299,7 @@ impl<'c> NumbersService<'c> {
         number: &str,
         body: &PortOutPinUpdateRequest,
     ) -> Result<PortOutPinUpdateData, ApiError> {
-        let path = format!("/v2.2/numbers/{}/port-out-pin", number);
+        let path = format!("/v2.2/numbers/{}/port-out-pin", encode_path_segment(number));
         self.client
             .transport
             .request(Method::PATCH, &path, &[], Some(body), true)

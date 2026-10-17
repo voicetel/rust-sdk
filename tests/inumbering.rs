@@ -12,8 +12,11 @@ async fn search_inventory_passes_filters() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/v2.2/inventory"))
-        .and(query_param("npa", "201"))
-        .and(query_param("state", "NJ"))
+        .and(query_param("tnMask", "201555*"))
+        .and(query_param("province", "NJ"))
+        .and(query_param("quantity", "25"))
+        .and(query_param("rateCenter", "CLOSTER"))
+        .and(query_param("lata", "224"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
             "numbers": [{"number": "2015550123", "rateCenter": "ENGLEWOOD", "city": "Engl", "province": "NJ", "lata": "224"}]
         }))))
@@ -21,19 +24,24 @@ async fn search_inventory_passes_filters() {
         .await;
     let c = test_client(&server).await;
     let q = InventoryQuery {
-        npa: Some(201),
-        state: Some("NJ".into()),
-        ..Default::default()
+        tn_mask: "201555*".into(),
+        quantity: Some(25),
+        province: Some("NJ".into()),
+        rate_center: Some("CLOSTER".into()),
+        lata: Some("224".into()),
     };
     let out = c.i_numbering().search_inventory(&q).await.unwrap();
     assert_eq!(out.numbers[0].number, "2015550123");
 }
 
 #[tokio::test]
-async fn coverage_default() {
+async fn coverage_sends_count_by_and_filters() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/v2.2/inventory/coverage"))
+        .and(query_param("countBy", "npanxx"))
+        .and(query_param("locState", "NJ"))
+        .and(query_param("npa", "201"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
                 "coverage": [{"count": 5, "npa": "201", "nxx": "555"}]
@@ -44,10 +52,25 @@ async fn coverage_default() {
     let c = test_client(&server).await;
     let out = c
         .i_numbering()
-        .coverage(&CoverageQuery::default())
+        .coverage(&CoverageQuery {
+            count_by: CoverageCountBy::NpaNxx,
+            loc_state: Some("NJ".into()),
+            npa: Some("201".into()),
+            ..Default::default()
+        })
         .await
         .unwrap();
     assert_eq!(out.coverage[0].count, 5);
+    assert_eq!(out.coverage[0].npa.as_deref(), Some("201"));
+}
+
+#[tokio::test]
+async fn coverage_count_by_wire_values() {
+    assert_eq!(CoverageCountBy::State.as_str(), "state");
+    assert_eq!(CoverageCountBy::City.as_str(), "city");
+    assert_eq!(CoverageCountBy::RateCenter.as_str(), "rateCenter");
+    assert_eq!(CoverageCountBy::NpaNxx.as_str(), "npanxx");
+    assert_eq!(CoverageCountBy::Block.as_str(), "block");
 }
 
 #[tokio::test]
@@ -88,10 +111,10 @@ async fn ports_and_port() {
         .mount(&server)
         .await;
     Mock::given(method("GET"))
-        .and(path("/v2.2/ports/1"))
+        .and(path("/v2.2/ports/w1476"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-                "port": {"status": "active"}
+                "port": {"status": "active", "pid": "w1476"}
             }))),
         )
         .mount(&server)
@@ -99,8 +122,9 @@ async fn ports_and_port() {
     let c = test_client(&server).await;
     let list = c.i_numbering().ports().await.unwrap();
     assert_eq!(list.ports.len(), 1);
-    let one = c.i_numbering().port(1).await.unwrap();
+    let one = c.i_numbering().port("w1476").await.unwrap();
     assert_eq!(one.port.status, "active");
+    assert_eq!(one.port.pid.as_deref(), Some("w1476"));
 }
 
 #[tokio::test]

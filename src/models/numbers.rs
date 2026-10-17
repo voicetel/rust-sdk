@@ -109,16 +109,10 @@ pub struct PortOutPinUpdateRequest {
     pub pin: String,
 }
 
-/// Body for `DELETE /v2.2/numbers/messaging-campaign` (bulk unassign).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BulkUnassignRequest {
-    /// TNs to unassign.
-    pub numbers: Vec<String>,
-}
-
 /// Per-number routing/feature state returned by `GET /v2.2/numbers` and
 /// `GET /v2.2/numbers/{number}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberDetail {
     /// 10-digit TN.
     pub number: String,
@@ -147,6 +141,7 @@ pub struct NumberDetail {
 
 /// Campaign currently bound to a number, with CSP status.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CampaignBinding {
     /// 7-character TCR campaign ID.
     pub id: String,
@@ -162,9 +157,10 @@ pub struct CampaignBinding {
 /// Lifecycle state of a [`MessagingEnablementJob`]: `queued` → `hosting` →
 /// `assigning` → `routing` → `done`, or `failed` (see `message`). The number
 /// keeps its previous routing until `done`.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MessagingEnablementJobState {
     /// Accepted, waiting to start.
+    #[default]
     #[serde(rename = "queued")]
     Queued,
     /// Being hosted on the messaging path.
@@ -188,7 +184,8 @@ pub enum MessagingEnablementJobState {
 /// `PUT /v2.2/numbers/{number}/messaging-campaign` (`status` `pending`) and
 /// surfaced by `GET /v2.2/numbers/{number}/messaging` (`pending`) while
 /// provisioning is in flight.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MessagingEnablementJob {
     /// TCR campaign ID being enabled.
     #[serde(rename = "campaignId")]
@@ -207,6 +204,7 @@ pub struct MessagingEnablementJob {
 
 /// Messaging-routing state for one number.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberMessagingState {
     /// 10-digit TN.
     pub number: String,
@@ -233,6 +231,7 @@ pub struct NumberMessagingState {
 
 /// Response data for `POST /v2.2/numbers`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberAddData {
     /// 10-digit TN.
     pub number: String,
@@ -242,6 +241,7 @@ pub struct NumberAddData {
 
 /// Response data for `PUT /v2.2/numbers/{number}/cnam`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberCnamData {
     /// 10-digit TN.
     pub number: String,
@@ -251,6 +251,7 @@ pub struct NumberCnamData {
 
 /// Response data for `GET`/`PUT /v2.2/numbers/{number}/fax`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberFaxData {
     /// 10-digit TN.
     pub number: String,
@@ -260,6 +261,7 @@ pub struct NumberFaxData {
 
 /// Response data for `PUT /v2.2/numbers/{number}/forward`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberForwardData {
     /// 10-digit TN.
     pub number: String,
@@ -270,6 +272,7 @@ pub struct NumberForwardData {
 
 /// Response data for `PUT /v2.2/numbers/{number}/lidb`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberLidbData {
     /// 10-digit TN.
     pub number: String,
@@ -285,6 +288,7 @@ pub struct NumberLidbData {
 
 /// Response data for `PATCH /v2.2/numbers/{number}/messaging`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberMessagingPatchData {
     /// 10-digit TN.
     pub number: String,
@@ -294,6 +298,7 @@ pub struct NumberMessagingPatchData {
 
 /// Response data for `PATCH /v2.2/numbers/{number}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberMoveData {
     /// 10-digit TN.
     pub number: String,
@@ -306,6 +311,7 @@ pub struct NumberMoveData {
 
 /// Response data for `PUT /v2.2/numbers/{number}/route`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberRouteData {
     /// 10-digit TN.
     pub number: String,
@@ -315,6 +321,7 @@ pub struct NumberRouteData {
 
 /// Response data for `GET`/`PUT /v2.2/numbers/{number}/sms`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberSmsData {
     /// 10-digit TN.
     pub number: String,
@@ -327,6 +334,7 @@ pub struct NumberSmsData {
 
 /// Response data for `PUT /v2.2/numbers/{number}/translation`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberTranslationData {
     /// 10-digit TN.
     pub number: String,
@@ -373,6 +381,7 @@ pub enum OrderId {
 /// is `done` or `failed`). Idempotent: a number already bound to the campaign
 /// reports `status` `already`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberMessagingCampaignAssignData {
     /// 10-digit TN.
     pub number: String,
@@ -423,6 +432,7 @@ pub struct NumberMessagingCampaignAssignData {
 
 /// Response data for `DELETE /v2.2/numbers/{number}/messaging-campaign`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumberMessagingCampaignUnassignData {
     /// 10-digit TN.
     pub number: String,
@@ -439,7 +449,8 @@ pub struct NumberMessagingCampaignUnassignData {
 }
 
 /// One row in [`NumbersMessagingCampaignUnassignData::failed`].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct CampaignUnassignFailure {
     /// TN that failed.
     pub number: String,
@@ -449,6 +460,7 @@ pub struct CampaignUnassignFailure {
 
 /// Response data for `DELETE /v2.2/numbers/messaging-campaign` (bulk unassign).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumbersMessagingCampaignUnassignData {
     /// Campaign ID that was unbound.
     #[serde(rename = "campaignId")]
@@ -468,6 +480,7 @@ pub struct NumbersMessagingCampaignUnassignData {
 
 /// Response data for `GET /v2.2/numbers`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumbersListData {
     /// TNs on the account.
     pub numbers: Vec<NumberDetail>,
@@ -475,6 +488,7 @@ pub struct NumbersListData {
 
 /// Response data for `GET /v2.2/numbers/messaging`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct NumbersMessagingListData {
     /// Per-number messaging state.
     pub numbers: Vec<NumberMessagingState>,
@@ -486,6 +500,7 @@ pub struct NumbersMessagingListData {
 /// that already has one returns it unchanged with `changed == false`; both
 /// cases return HTTP 200.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct PortOutPinUpdateData {
     /// Ten-digit TN whose PIN is reported.
     pub number: String,

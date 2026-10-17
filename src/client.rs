@@ -140,11 +140,12 @@ impl Client {
     }
 
     /// Exchange username + password for a 32-hex API key and install it on
-    /// this client. The exchange counts against the 6 req/hour/IP rate limit
-    /// shared by every `account/*` endpoint.
+    /// this client. The username is the account's 10-digit numeric ID as a
+    /// string (e.g. `"1000000001"`). The exchange is rate-limited to
+    /// 6 req/hour/IP.
     ///
     /// Returns the freshly-issued key for callers who want to persist it.
-    pub async fn login(&self, username: u64, password: &str) -> Result<String, ApiError> {
+    pub async fn login(&self, username: &str, password: &str) -> Result<String, ApiError> {
         let body = serde_json::json!({"username": username, "password": password});
         let data: AccountApiKeyData = self
             .transport

@@ -15,17 +15,16 @@ pub struct MessagingService<'c> {
 }
 
 impl<'c> MessagingService<'c> {
-    /// `GET /v2.2/messages` — message history with optional filters.
+    /// `GET /v2.2/messages` — message history for one number. `number` is
+    /// required by the server; `from`/`to` bound the inclusive Unix-timestamp
+    /// range, and `kind` selects `sms` (default), `mms`, or `dlr`.
     pub async fn history(&self, opts: &HistoryOptions) -> Result<MessageHistoryData, ApiError> {
-        let mut q: Vec<(&str, String)> = Vec::new();
-        if let Some(ref n) = opts.number {
-            q.push(("number", n.clone()));
+        let mut q: Vec<(&str, String)> = vec![("number", opts.number.clone())];
+        if let Some(f) = opts.from {
+            q.push(("from", f.to_string()));
         }
-        if let Some(s) = opts.start {
-            q.push(("start", s.to_string()));
-        }
-        if let Some(e) = opts.end {
-            q.push(("end", e.to_string()));
+        if let Some(t) = opts.to {
+            q.push(("to", t.to_string()));
         }
         if let Some(ref t) = opts.kind {
             q.push(("type", t.clone()));
@@ -61,14 +60,19 @@ impl<'c> MessagingService<'c> {
             .await
     }
 
-    /// `GET /v2.2/messaging/campaigns` — current 10DLC campaign statuses.
-    pub async fn campaign_status(&self) -> Result<MessagingCampaignStatusData, ApiError> {
+    /// `GET /v2.2/messaging/campaigns` — per-campaign status and bound numbers
+    /// for the given comma-joined campaign ids (max 100; required).
+    pub async fn campaign_status(
+        &self,
+        ids: &[String],
+    ) -> Result<MessagingCampaignStatusData, ApiError> {
+        let q = vec![("ids", ids.join(","))];
         self.client
             .transport
             .request::<(), MessagingCampaignStatusData>(
                 Method::GET,
                 "/v2.2/messaging/campaigns",
-                &[],
+                &q,
                 None,
                 true,
             )
@@ -92,16 +96,14 @@ impl<'c> MessagingService<'c> {
             .await
     }
 
-    /// `GET /v2.2/numbers/messaging` — messaging state for many numbers at once.
-    /// Pass an empty slice for "all numbers on the account".
+    /// `GET /v2.2/numbers/messaging` — messaging state for the given numbers
+    /// (comma-joined; required, max 1000). Numbers not on the authenticated
+    /// account come back with `on_account == Some(false)`.
     pub async fn numbers_state(
         &self,
         numbers: &[String],
     ) -> Result<NumbersMessagingListData, ApiError> {
-        let mut q: Vec<(&str, String)> = Vec::new();
-        if !numbers.is_empty() {
-            q.push(("numbers", numbers.join(",")));
-        }
+        let q = vec![("numbers", numbers.join(","))];
         self.client
             .transport
             .request::<(), NumbersMessagingListData>(

@@ -118,15 +118,16 @@ pub struct AccountData {
 /// Body for `POST /v2.2/account` (admin-only sub-account creation).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AccountAddRequest {
-    /// Numeric username (e.g. `1000000123`).
-    pub username: u64,
+    /// 10-digit numeric username (e.g. `1000000123`), as a string.
+    pub username: String,
     /// Display name.
     pub name: String,
     /// Contact email.
     pub email: String,
-    /// Optional master account ID this sub-account rolls up to.
+    /// Optional master account this sub-account rolls up to (numeric string;
+    /// defaults to `username` on the server).
     #[serde(rename = "masterAccount", skip_serializing_if = "Option::is_none")]
-    pub master_account: Option<u64>,
+    pub master_account: Option<String>,
 }
 
 /// Response data for `POST /v2.2/account`.
@@ -187,6 +188,7 @@ pub struct AccountPutRequest {
 
 /// Response data for `PUT /v2.2/account`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AccountPutData {
     /// Fields the server actually updated.
     pub updated: Vec<String>,
@@ -238,6 +240,7 @@ pub struct AccountRecoverData {
 
 /// Response data for `POST /v2.2/account/api-key`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AccountApiKeyData {
     /// 32-hex bearer token.
     pub apikey: String,
@@ -322,8 +325,9 @@ pub struct CdrEntry {
 
 /// Response data for `GET /v2.2/account/cdr`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct AccountCdrData {
-    /// CDR rows, oldest first.
+    /// CDR rows, newest first.
     pub cdr: Vec<CdrEntry>,
     /// Echo of the `start` query parameter (unix seconds).
     pub start: i64,
@@ -346,22 +350,43 @@ pub struct AccountPaymentsData {
 }
 
 /// One monthly-recurring charge row inside [`AccountMrcData`].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct MrcCharge {
     /// Amount (USD).
     pub amount: f64,
     /// Free-form description (e.g. `DID 12015550123`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
 /// Response data for `GET /v2.2/account/recurring-charges`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct AccountMrcData {
     /// Active recurring charges.
     pub charges: Vec<MrcCharge>,
     /// Total of all charges (USD).
     pub total: f64,
+}
+
+/// Optional invoice-status filter for `GET /v2.2/account/credits`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreditStatusFilter {
+    /// Credits whose invoice has been paid.
+    Paid,
+    /// Credits whose invoice is still outstanding.
+    Unpaid,
+}
+
+impl CreditStatusFilter {
+    /// Wire value of the `status` query parameter.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Paid => "paid",
+            Self::Unpaid => "unpaid",
+        }
+    }
 }
 
 /// Response data for `GET /v2.2/account/registration`.
@@ -373,7 +398,4 @@ pub struct AccountRegistrationData {
     /// Contact URI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
-    /// Registration TTL (seconds).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expires: Option<i64>,
 }

@@ -8,9 +8,9 @@ use crate::models::account::*;
 
 /// Handle for the `Account` resource.
 ///
-/// **Note:** `cdr`, `recurring_charges`, `payments`, `registration`, and
-/// `info` (plus [`Client::login`](crate::Client::login)) share a 6 req/hour/IP
-/// rate limit on the server. Bursting will trigger 429s.
+/// **Note:** only `get`, `cdr`, `recurring_charges`, and
+/// [`Client::login`](crate::Client::login) are rate-limited — 6 req/hour/IP
+/// each on the server. Bursting those will trigger 429s.
 #[derive(Debug)]
 pub struct AccountService<'c> {
     pub(crate) client: &'c Client,
@@ -41,11 +41,11 @@ impl<'c> AccountService<'c> {
             .await
     }
 
-    /// `POST /v2.2/accounts` — public sign-up flow.
+    /// `POST /v2.2/accounts` — public sign-up flow; no bearer token required.
     pub async fn signup(&self, body: &AccountSignupRequest) -> Result<AccountSignupData, ApiError> {
         self.client
             .transport
-            .request(Method::POST, "/v2.2/accounts", &[], Some(body), true)
+            .request(Method::POST, "/v2.2/accounts", &[], Some(body), false)
             .await
     }
 
@@ -65,17 +65,20 @@ impl<'c> AccountService<'c> {
             .await
     }
 
-    /// `GET /v2.2/account/credits` — credit history (newest first).
-    pub async fn credits(&self) -> Result<AccountCreditsData, ApiError> {
+    /// `GET /v2.2/account/credits` — credit history (newest first). Pass
+    /// `Some(CreditStatusFilter::Paid / Unpaid)` to filter by invoice status;
+    /// `None` returns all credits.
+    pub async fn credits(
+        &self,
+        status: Option<CreditStatusFilter>,
+    ) -> Result<AccountCreditsData, ApiError> {
+        let mut q: Vec<(&str, String)> = Vec::new();
+        if let Some(s) = status {
+            q.push(("status", s.as_str().to_string()));
+        }
         self.client
             .transport
-            .request::<(), AccountCreditsData>(
-                Method::GET,
-                "/v2.2/account/credits",
-                &[],
-                None,
-                true,
-            )
+            .request::<(), AccountCreditsData>(Method::GET, "/v2.2/account/credits", &q, None, true)
             .await
     }
 
@@ -93,7 +96,7 @@ impl<'c> AccountService<'c> {
             .await
     }
 
-    /// `GET /v2.2/account/payments` — payment history (newest first). Rate-limited.
+    /// `GET /v2.2/account/payments` — payment history (newest first).
     pub async fn payments(&self) -> Result<AccountPaymentsData, ApiError> {
         self.client
             .transport
@@ -107,7 +110,7 @@ impl<'c> AccountService<'c> {
             .await
     }
 
-    /// `GET /v2.2/account/registration` — current SIP registration. Rate-limited.
+    /// `GET /v2.2/account/registration` — current SIP registration.
     pub async fn registration(&self) -> Result<AccountRegistrationData, ApiError> {
         self.client
             .transport

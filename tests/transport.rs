@@ -34,7 +34,7 @@ async fn login_installs_bearer_and_returns_key() {
         .max_retries(0)
         .build()
         .unwrap();
-    let key = client.login(1_000_000_001, "hunter2").await.unwrap();
+    let key = client.login("1000000001", "hunter2").await.unwrap();
     assert_eq!(key, "deadbeef");
     assert_eq!(client.api_key().as_deref(), Some("deadbeef"));
 }
@@ -56,7 +56,7 @@ async fn login_empty_key_yields_authentication_error() {
         .max_retries(0)
         .build()
         .unwrap();
-    let err: ApiError = client.login(1, "x").await.unwrap_err();
+    let err: ApiError = client.login("1", "x").await.unwrap_err();
     assert_eq!(err.kind, ErrorKind::Authentication);
 }
 
@@ -110,8 +110,8 @@ async fn maps_404_to_not_found() {
     Mock::given(method("GET"))
         .and(path("/v2.2/numbers/9999999999"))
         .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
-            "code": "not_found",
-            "message": "no such TN"
+            "status": "error",
+            "error": {"code": 404, "message": "no such TN"}
         })))
         .mount(&server)
         .await;
@@ -120,8 +120,66 @@ async fn maps_404_to_not_found() {
     assert_eq!(err.kind, ErrorKind::NotFound);
     assert!(err.is_not_found());
     assert_eq!(err.status_code, 404);
-    assert_eq!(err.code.as_deref(), Some("not_found"));
+    assert_eq!(err.code, Some(404));
     assert_eq!(err.message, "no such TN");
+}
+
+#[tokio::test]
+async fn parses_spec_error_envelope() {
+    // Canonical spec shape: {"status":"error","error":{"code":<int>,"message":<string>}}
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/account"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+            "status": "error",
+            "error": {"code": 401, "message": "Missing or invalid Bearer token"}
+        })))
+        .mount(&server)
+        .await;
+    let client = test_client(&server).await;
+    let err = client.account().get().await.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Authentication);
+    assert_eq!(err.code, Some(401));
+    assert_eq!(err.message, "Missing or invalid Bearer token");
+    assert!(err
+        .body
+        .as_deref()
+        .unwrap()
+        .contains("\"status\":\"error\""));
+}
+
+#[tokio::test]
+async fn auth_put_conflict_accessor_decodes_typed_data() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .and(path("/v2.2/auth"))
+        .respond_with(ResponseTemplate::new(409).set_body_json(serde_json::json!({
+            "status": "error",
+            "error": {"code": 409, "message": "One or more updates failed"},
+            "updated": [{"field": "authType", "value": 1}],
+            "errors": [{"field": "password", "message": "Must be 6-10 alphanumeric characters with at least one letter and one number"}]
+        })))
+        .mount(&server)
+        .await;
+    let client = test_client(&server).await;
+    let body = voicetel::models::authentication::AuthPutRequest {
+        auth_type: Some(1),
+        password: Some("weak".into()),
+    };
+    let err = client.authentication().update(&body).await.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Conflict);
+    assert_eq!(err.code, Some(409));
+    let detail = err.auth_put_conflict().expect("typed auth conflict data");
+    let updated = detail.updated.as_deref().expect("updated fields");
+    assert_eq!(updated[0].field, "authType");
+    assert_eq!(updated[0].value, Some(1));
+    let errors = detail.errors.as_deref().expect("error entries");
+    assert_eq!(errors[0].field, "password");
+    assert!(errors[0].message.contains("6-10 alphanumeric"));
+    // A non-409 error yields no typed data.
+    let other = ApiError::from_status(400, None, "x", None);
+    assert!(other.auth_put_conflict().is_none());
+    assert!(other.acl_conflict().is_none());
 }
 
 #[tokio::test]
@@ -168,7 +226,7 @@ async fn retries_on_5xx_then_succeeds() {
 
 #[tokio::test]
 async fn error_display_contains_status() {
-    let err = ApiError::from_status(401, Some("auth".into()), "bad token", None);
+    let err = ApiError::from_status(401, Some(401), "bad token", None);
     let s = format!("{}", err);
     assert!(s.contains("401"));
     assert!(s.contains("bad token"));

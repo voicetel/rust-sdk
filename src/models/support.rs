@@ -239,6 +239,7 @@ pub struct SupportCustomer {
 
 /// One message in a ticket conversation.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct SupportThread {
     /// Thread ID.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -309,6 +310,7 @@ pub struct SupportThread {
 /// ...), **not** a phone number. The Rust SDK exposes it as
 /// `ticket_number: Option<i64>` to avoid confusion with 10-digit TNs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct SupportConversation {
     /// Ticket ID.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -408,6 +410,7 @@ pub struct SupportConversation {
 
 /// Response data for `GET`/`POST /v2.2/support/tickets/{...}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct TicketData {
     /// The ticket.
     pub ticket: SupportConversation,
@@ -415,13 +418,18 @@ pub struct TicketData {
 
 /// Response data for `GET /v2.2/support/tickets`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct TicketsListData {
     /// Every ticket on the account.
     pub tickets: Vec<SupportConversation>,
+    /// Total tickets matching the filter.
+    #[serde(rename = "totalCount", skip_serializing_if = "Option::is_none")]
+    pub total_count: Option<i64>,
 }
 
 /// Response data for `GET /v2.2/support/tickets/{id}/messages`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct TicketThreadsData {
     /// Threads.
     pub messages: Vec<SupportThread>,
@@ -429,6 +437,7 @@ pub struct TicketThreadsData {
 
 /// Response data for `POST /v2.2/support/tickets/{id}/replies`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct TicketReplyData {
     /// Always `Reply added`.
     pub message: String,
@@ -436,6 +445,7 @@ pub struct TicketReplyData {
 
 /// Response data for `PUT /v2.2/support/tickets/{id}`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct TicketUpdateData {
     /// Ticket ID.
     #[serde(default, skip_serializing_if = "Option::is_none")]

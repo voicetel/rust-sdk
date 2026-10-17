@@ -5,6 +5,7 @@ use reqwest::Method;
 use crate::client::Client;
 use crate::error::ApiError;
 use crate::models::lookups::*;
+use crate::transport::encode_path_segment;
 
 /// Handle for the `Lookups` resource — CNAM and LRN dips.
 ///
@@ -17,7 +18,7 @@ pub struct LookupsService<'c> {
 impl<'c> LookupsService<'c> {
     /// `GET /v2.2/cnam/{number}` — CNAM dip on `number` (10-digit TN).
     pub async fn cnam(&self, number: &str) -> Result<CnamData, ApiError> {
-        let path = format!("/v2.2/cnam/{}", number);
+        let path = format!("/v2.2/cnam/{}", encode_path_segment(number));
         self.client
             .transport
             .request::<(), CnamData>(Method::GET, &path, &[], None, true)
@@ -27,7 +28,11 @@ impl<'c> LookupsService<'c> {
     /// `GET /v2.2/lrn/{number}/{ani}` — LRN dip. `ani` is the presented ANI
     /// (10-digit TN) used only for billing/auth — it is not echoed back.
     pub async fn lrn(&self, number: &str, ani: &str) -> Result<LrnLookupData, ApiError> {
-        let path = format!("/v2.2/lrn/{}/{}", number, ani);
+        let path = format!(
+            "/v2.2/lrn/{}/{}",
+            encode_path_segment(number),
+            encode_path_segment(ani)
+        );
         self.client
             .transport
             .request::<(), LrnLookupData>(Method::GET, &path, &[], None, true)

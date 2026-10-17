@@ -43,8 +43,9 @@ impl Transport {
 
     /// Perform a JSON-in / JSON-out request, retrying transient failures.
     ///
-    /// `require_auth=false` skips the `Authorization` header — used only by
-    /// the api-key exchange and the public password-recovery endpoint.
+    /// `require_auth=false` skips the `Authorization` header — used by the
+    /// public endpoints: the api-key exchange, account signup, and the
+    /// password-recovery endpoint.
     pub async fn request<B, T>(
         &self,
         method: Method,
@@ -204,6 +205,10 @@ impl Transport {
 }
 
 /// Inspect a final response: return bytes on 2xx; build an `ApiError` otherwise.
+///
+/// The spec error envelope is `{"status":"error","error":{"code":<int>,
+/// "message":<string>}}` — the nested object is parsed first. A legacy flat
+/// `{"code": ..., "message": ...}` shape is still tolerated as a fallback.
 fn decode(status: StatusCode, body: Vec<u8>) -> Result<Vec<u8>, ApiError> {
     if status.is_success() {
         return Ok(body);
@@ -213,15 +218,22 @@ fn decode(status: StatusCode, body: Vec<u8>) -> Result<Vec<u8>, ApiError> {
     let mut message = format!("HTTP {}", status.as_u16());
     if let Ok(val) = serde_json::from_slice::<Value>(&body) {
         if let Some(obj) = val.as_object() {
-            if let Some(c) = obj.get("code").and_then(|v| v.as_str()) {
-                code = Some(c.to_string());
-            } else if let Some(c) = obj.get("error").and_then(|v| v.as_str()) {
-                code = Some(c.to_string());
-            }
-            if let Some(m) = obj.get("message").and_then(|v| v.as_str()) {
-                message = m.to_string();
-            } else if let Some(m) = obj.get("error").and_then(|v| v.as_str()) {
-                message = m.to_string();
+            if let Some(err) = obj.get("error").and_then(|v| v.as_object()) {
+                if let Some(c) = err.get("code").and_then(|v| v.as_i64()) {
+                    code = Some(c);
+                }
+                if let Some(m) = err.get("message").and_then(|v| v.as_str()) {
+                    message = m.to_string();
+                }
+            } else {
+                if let Some(c) = obj.get("code").and_then(|v| v.as_i64()) {
+                    code = Some(c);
+                }
+                if let Some(m) = obj.get("message").and_then(|v| v.as_str()) {
+                    message = m.to_string();
+                } else if let Some(m) = obj.get("error").and_then(|v| v.as_str()) {
+                    message = m.to_string();
+                }
             }
         }
     }
@@ -272,12 +284,70 @@ fn trim_leading_whitespace(b: &[u8]) -> &[u8] {
     &b[i..]
 }
 
-/// Compute the delay before retry attempt+1. Honors `Retry-After` (integer seconds).
+/// Compute the delay before retry attempt+1. Honors `Retry-After` (integer
+/// seconds), but caps the honored value at 8 seconds so a hostile or buggy
+/// server cannot park the client.
 fn backoff_delay(attempt: u32, retry_after_secs: Option<u64>) -> Duration {
     if let Some(secs) = retry_after_secs {
-        return Duration::from_secs(secs);
+        return Duration::from_secs(secs.min(8));
     }
     let base_ms: u64 = 500;
     let shifted = base_ms.saturating_mul(1u64 << attempt.min(4));
     Duration::from_millis(shifted.min(8_000))
+}
+
+/// Percent-encode a single URL path segment. Everything outside the RFC 3986
+/// unreserved set (`A-Z a-z 0-9 - _ . ~`) is percent-encoded — in particular
+/// `/`, which would otherwise let a caller-supplied value escape its segment.
+pub(crate) fn encode_path_segment(s: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut out = String::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(b as char)
+            }
+            _ => {
+                out.push('%');
+                out.push(HEX[(b >> 4) as usize] as char);
+                out.push(HEX[(b & 0x0f) as usize] as char);
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_segment_leaves_unreserved_untouched() {
+        assert_eq!(encode_path_segment("2015550123"), "2015550123");
+        assert_eq!(encode_path_segment("w1476"), "w1476");
+        assert_eq!(encode_path_segment("a-b_c.d~e"), "a-b_c.d~e");
+    }
+
+    #[test]
+    fn path_segment_encodes_reserved_and_utf8() {
+        assert_eq!(encode_path_segment("a/b"), "a%2Fb");
+        assert_eq!(encode_path_segment("a b"), "a%20b");
+        assert_eq!(encode_path_segment("a?b#c"), "a%3Fb%23c");
+        assert_eq!(encode_path_segment("é"), "%C3%A9");
+    }
+
+    #[test]
+    fn retry_after_is_capped_at_eight_seconds() {
+        assert_eq!(backoff_delay(0, Some(0)), Duration::from_secs(0));
+        assert_eq!(backoff_delay(0, Some(5)), Duration::from_secs(5));
+        assert_eq!(backoff_delay(0, Some(8)), Duration::from_secs(8));
+        assert_eq!(backoff_delay(0, Some(3600)), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn exponential_backoff_caps_at_eight_seconds() {
+        assert_eq!(backoff_delay(0, None), Duration::from_millis(500));
+        assert_eq!(backoff_delay(1, None), Duration::from_millis(1000));
+        assert_eq!(backoff_delay(10, None), Duration::from_secs(8));
+    }
 }

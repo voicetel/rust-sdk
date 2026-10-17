@@ -2,7 +2,7 @@
 
 The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed `serde` models and an async-first ergonomics on top of [`reqwest`].
 
-![Version](https://img.shields.io/badge/version-2.2.15-blue)
+![Version](https://img.shields.io/badge/version-2.2.16-blue)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
@@ -27,7 +27,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 ## ✨ Features
 
 ### 🛡️ Strongly Typed End-to-End
-- **`#[derive(Serialize, Deserialize)]` on every model** — 73 operations across 10 resources, no `serde_json::Value` smuggling.
+- **`#[derive(Serialize, Deserialize)]` on every model** — 79 operations across 10 resources, no `serde_json::Value` smuggling.
 - **`Option<T>` + `skip_serializing_if`** on optional request fields — distinguish "not set" from "zero" cleanly when PATCH-ing.
 - **`Option<T>` for nullable response fields** — `forward_to: Option<String>` lets you tell apart "no forward configured" from an empty destination.
 - **Wire-name aware** — `fromNumber`, `localRoutingNumber`, `rateCenterTier`, `ticketNumber` and friends are all surfaced under idiomatic snake_case Rust names via `#[serde(rename = ...)]`.
@@ -53,7 +53,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 - **Authentication** — switch between Digest, IP-only, or hybrid modes; rotate passwords.
 
 ### 🧪 Battle-Tested
-- **77 unit tests** + 2 doc-tests + 2 integration tests via **`wiremock`**.
+- **97 tests** + 2 doc-tests + 2 integration tests via **`wiremock`**.
 - **93% line coverage** (cargo-tarpaulin, llvm engine).
 - Every method's happy path and error path covered.
 - **`cargo fmt --check`** clean.
@@ -67,7 +67,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 
 ```toml
 [dependencies]
-voicetel = "2.2.15"
+voicetel = "2.2.16"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -94,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     // Exchange username + password for an API key (one-time per session)
-    client.login(1_000_000_001, "hunter2").await?;
+    client.login("1000000001", "hunter2").await?;
 
     // Typed responses — your IDE knows what `me` is.
     let me = client.account().get().await?;
@@ -112,11 +112,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Or, if you already have an API key:
 
 ```rust
-use voicetel::{Client, models::inumbering::CoverageQuery};
+use voicetel::{Client, models::inumbering::{CoverageCountBy, CoverageQuery}};
 
 # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 let client = Client::builder().api_key("32hex...").build()?;
-let q = CoverageQuery { state: Some("NJ".into()), ..Default::default() };
+let q = CoverageQuery { count_by: CoverageCountBy::NpaNxx, loc_state: Some("NJ".into()), ..Default::default() };
 let coverage = client.i_numbering().coverage(&q).await?;
 for bucket in coverage.coverage {
     println!("{:?}-{:?}: {} TNs", bucket.npa, bucket.nxx, bucket.count);
@@ -136,7 +136,7 @@ Re-fetch the API key after any password change — the old one is invalidated.
 # use voicetel::Client;
 # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 let client = Client::builder().build()?;
-let key = client.login(1_000_000_001, "hunter2").await?;
+let key = client.login("1000000001", "hunter2").await?;
 // `key` is the new 32-hex bearer; the client already has it installed.
 # Ok(()) }
 ```
@@ -198,6 +198,25 @@ match client.numbers().get("9999999999").await {
 # Ok(()) }
 ```
 
+Error bodies follow the spec envelope `{"status":"error","error":{"code":<int>,"message":<string>}}`; `err.code` / `err.message` are parsed out of it for you. Two 409 endpoints additionally carry a structured detail block — decode them with the typed accessors:
+
+```rust
+# use voicetel::{Client, models::acl::AclModifyRequest, models::common::CidrEntry};
+# async fn run(client: Client) -> Result<(), Box<dyn std::error::Error>> {
+let body = AclModifyRequest { acl: vec![CidrEntry { cidr: "203.0.113.0/24".into() }] };
+match client.acl().add(&body).await {
+    Ok(added) => println!("added {}", added.added.len()),
+    Err(e) => {
+        if let Some(conflict) = e.acl_conflict() {
+            // entries the server added/rejected before the conflict
+            eprintln!("partial failure: {:?}", conflict.failed);
+        }
+        // PUT /v2.2/auth 409s decode via e.auth_put_conflict() instead.
+    }
+}
+# Ok(()) }
+```
+
 ## ⏱️ Cancellation and Timeouts
 
 Cancellation works through Tokio's normal mechanisms — wrap the call in `tokio::time::timeout(...)` for a per-call deadline:
@@ -245,11 +264,11 @@ These endpoints are limited to **6 requests per hour per IP**:
 - `account` (`AccountService::get`)
 - `account/cdr` (`AccountService::cdr`)
 - `account/recurring-charges` (`AccountService::recurring_charges`)
-- `account/payments` (`AccountService::payments`)
-- `account/registration` (`AccountService::registration`)
 - `account/api-key` (`Client::login`)
 
-The SDK automatically retries 429 responses with `Retry-After` honoured, up to `max_retries(n)` (default 2):
+`POST /v2.2/messaging/health/check` (`MessagingService::health_check`) is separately limited to **30 checks per hour per account**.
+
+The SDK automatically retries 429 responses with `Retry-After` honoured (capped at 8s), up to `max_retries(n)` (default 2):
 
 ```rust
 # use std::time::Duration;

@@ -3,6 +3,16 @@
 mod common;
 use common::{envelope, test_client};
 
+/// Build a Client pointed at the mock server *without* an API key — for the
+/// public signup endpoint (`POST /v2.2/accounts`).
+fn keyless_client(server: &MockServer) -> voicetel::Client {
+    voicetel::Client::builder()
+        .base_url(server.uri())
+        .max_retries(0)
+        .build()
+        .expect("build client")
+}
+
 use voicetel::models::account::*;
 use wiremock::matchers::{body_partial_json, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -70,7 +80,7 @@ async fn account_add() {
         .await;
     let c = test_client(&server).await;
     let body = AccountAddRequest {
-        username: 1_000_000_099,
+        username: "1000000099".into(),
         name: "Sub".into(),
         email: "sub@example.com".into(),
         master_account: None,
@@ -100,6 +110,35 @@ async fn account_signup() {
     };
     let out = c.account().signup(&body).await.unwrap();
     assert_eq!(out.username.as_deref(), Some("1000000200"));
+}
+
+#[tokio::test]
+async fn account_signup_public_no_auth() {
+    // Signup is a public endpoint: a client with no API key must be able to
+    // call it (and must not send an Authorization header).
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v2.2/accounts"))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(envelope(serde_json::json!({
+                "username": "1000000201",
+                "password": "initialPass1",
+                "name": "Joe",
+                "email": "joe@example.com"
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = keyless_client(&server);
+    assert!(c.api_key().is_none());
+    let body = AccountSignupRequest {
+        name: "Joe".into(),
+        email: "joe@example.com".into(),
+        promo: None,
+    };
+    let out = c.account().signup(&body).await.unwrap();
+    assert_eq!(out.username.as_deref(), Some("1000000201"));
+    assert_eq!(out.password.as_deref(), Some("initialPass1"));
 }
 
 #[tokio::test]
@@ -137,9 +176,32 @@ async fn account_credits() {
         .mount(&server)
         .await;
     let c = test_client(&server).await;
-    let out = c.account().credits().await.unwrap();
+    let out = c.account().credits(None).await.unwrap();
     assert_eq!(out.credits.len(), 1);
     assert_eq!(out.credits[0].amount, 10.0);
+}
+
+#[tokio::test]
+async fn account_credits_status_filter() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/account/credits"))
+        .and(query_param("status", "unpaid"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "credits": [{"date": "2026-05-01", "paid": false, "amount": 25.0}]
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let out = c
+        .account()
+        .credits(Some(CreditStatusFilter::Unpaid))
+        .await
+        .unwrap();
+    assert_eq!(out.credits.len(), 1);
+    assert!(!out.credits[0].paid);
 }
 
 #[tokio::test]
@@ -185,15 +247,15 @@ async fn account_registration() {
         .respond_with(
             ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
                 "agent": "Acme/1.0",
-                "uri": "sip:1@example",
-                "expires": 3600
+                "uri": "sip:1@example"
             }))),
         )
         .mount(&server)
         .await;
     let c = test_client(&server).await;
     let out = c.account().registration().await.unwrap();
-    assert_eq!(out.expires, Some(3600));
+    assert_eq!(out.agent.as_deref(), Some("Acme/1.0"));
+    assert_eq!(out.uri.as_deref(), Some("sip:1@example"));
 }
 
 #[tokio::test]
@@ -222,11 +284,13 @@ async fn account_get_400_error_path() {
     Mock::given(method("GET"))
         .and(path("/v2.2/account"))
         .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
-            "code": "bad", "message": "explode"
+            "status": "error", "error": {"code": 400, "message": "explode"}
         })))
         .mount(&server)
         .await;
     let c = test_client(&server).await;
     let err = c.account().get().await.unwrap_err();
     assert_eq!(err.status_code, 400);
+    assert_eq!(err.code, Some(400));
+    assert_eq!(err.message, "explode");
 }
