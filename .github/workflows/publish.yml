@@ -1,0 +1,33 @@
+name: Publish to crates.io
+
+# Publishes the `voicetel` crate on every v* tag push.
+#
+# Required repo secret:
+#   CARGO_REGISTRY_TOKEN — crates.io API token (crates.io/me → New Token,
+#                          scoped to the voicetel crate after first publish;
+#                          first publish claims the name, so use an
+#                          owner token initially)
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify package contents
+        run: cargo publish --dry-run
+
+      - name: Publish
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
