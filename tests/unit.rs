@@ -386,9 +386,11 @@ fn tickets_list_data_reads_total_count() {
 fn errorkind_from_status_maps_known_codes() {
     assert_eq!(ErrorKind::from_status(400), ErrorKind::BadRequest);
     assert_eq!(ErrorKind::from_status(401), ErrorKind::Authentication);
+    assert_eq!(ErrorKind::from_status(402), ErrorKind::PaymentRequired);
     assert_eq!(ErrorKind::from_status(403), ErrorKind::PermissionDenied);
     assert_eq!(ErrorKind::from_status(404), ErrorKind::NotFound);
     assert_eq!(ErrorKind::from_status(409), ErrorKind::Conflict);
+    assert_eq!(ErrorKind::from_status(413), ErrorKind::PayloadTooLarge);
     assert_eq!(ErrorKind::from_status(429), ErrorKind::RateLimit);
     assert_eq!(ErrorKind::from_status(500), ErrorKind::Server);
     assert_eq!(ErrorKind::from_status(599), ErrorKind::Server);
@@ -410,8 +412,16 @@ fn errorkind_display_strings() {
     assert_eq!(format!("{}", ErrorKind::Conflict), "conflict");
     assert_eq!(format!("{}", ErrorKind::Authentication), "authentication");
     assert_eq!(
+        format!("{}", ErrorKind::PaymentRequired),
+        "payment required"
+    );
+    assert_eq!(
         format!("{}", ErrorKind::PermissionDenied),
         "permission denied"
+    );
+    assert_eq!(
+        format!("{}", ErrorKind::PayloadTooLarge),
+        "payload too large"
     );
 }
 

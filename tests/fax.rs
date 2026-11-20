@@ -346,10 +346,40 @@ async fn fax_error_envelope_with_servertime_is_parsed_tolerantly() {
         idempotency_key: None,
     };
     let err = c.fax().send(&req).await.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::PaymentRequired);
     assert_eq!(err.status_code, 402);
     assert_eq!(err.code, Some(402));
     assert_eq!(
         err.message,
         "Your account needs a positive balance to send faxes."
     );
+}
+
+#[tokio::test]
+async fn fax_send_413_maps_to_payload_too_large() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v2.2/faxes"))
+        .respond_with(ResponseTemplate::new(413).set_body_json(serde_json::json!({
+            "status": "error",
+            "error": {"code": 413, "message": "Documents exceed the 8 MiB limit."}
+        })))
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let req = FaxSendRequest {
+        from_number: "2015550123".into(),
+        to_number: "2125550123".into(),
+        documents: vec![FaxDocument {
+            name: "contract.pdf".into(),
+            content_type: "application/pdf".into(),
+            data: b"%PDF-1.4 fake".to_vec(),
+        }],
+        idempotency_key: None,
+    };
+    let err = c.fax().send(&req).await.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::PayloadTooLarge);
+    assert_eq!(err.status_code, 413);
+    assert_eq!(err.code, Some(413));
+    assert_eq!(err.message, "Documents exceed the 8 MiB limit.");
 }

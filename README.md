@@ -180,9 +180,11 @@ All HTTP errors return an `ApiError`. Inspect `kind` or use the boolean helpers:
 |---|---|
 | `BadRequest` | 400 |
 | `Authentication` | 401 |
+| `PaymentRequired` | 402 |
 | `PermissionDenied` | 403 |
 | `NotFound` | 404 |
 | `Conflict` | 409 |
+| `PayloadTooLarge` | 413 |
 | `RateLimit` | 429 |
 | `Server` | 5xx |
 | `Transport` | transport-level (DNS/TLS/timeout) |

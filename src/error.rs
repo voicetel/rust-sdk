@@ -15,12 +15,16 @@ pub enum ErrorKind {
     BadRequest,
     /// HTTP 401 — bearer token missing, expired, or invalid.
     Authentication,
+    /// HTTP 402 — account balance too low (fax send, directory listing).
+    PaymentRequired,
     /// HTTP 403 — authenticated but not authorised for the resource.
     PermissionDenied,
     /// HTTP 404 — resource does not exist.
     NotFound,
     /// HTTP 409 — request conflicts with current state.
     Conflict,
+    /// HTTP 413 — fax documents exceed the 8 MiB upload limit.
+    PayloadTooLarge,
     /// HTTP 429 — rate-limit exceeded.
     RateLimit,
     /// Any HTTP 5xx response.
@@ -38,9 +42,11 @@ impl ErrorKind {
         match status {
             400 => Self::BadRequest,
             401 => Self::Authentication,
+            402 => Self::PaymentRequired,
             403 => Self::PermissionDenied,
             404 => Self::NotFound,
             409 => Self::Conflict,
+            413 => Self::PayloadTooLarge,
             429 => Self::RateLimit,
             500..=599 => Self::Server,
             _ => Self::Unknown,
@@ -54,9 +60,11 @@ impl fmt::Display for ErrorKind {
             Self::Unknown => "unknown",
             Self::BadRequest => "bad request",
             Self::Authentication => "authentication",
+            Self::PaymentRequired => "payment required",
             Self::PermissionDenied => "permission denied",
             Self::NotFound => "not found",
             Self::Conflict => "conflict",
+            Self::PayloadTooLarge => "payload too large",
             Self::RateLimit => "rate limit",
             Self::Server => "server error",
             Self::Transport => "transport error",
