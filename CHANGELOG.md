@@ -12,6 +12,7 @@ Spec v2.2.21 audit release: the new Fax API, plus a breaking wire fix on `DELETE
   - `get(id)` — `GET /v2.2/faxes/{id}`, one job with status/timestamps/attempts/documents.
   - `document(id)` — `GET /v2.2/faxes/{id}/document`, the rendered PDF as raw bytes.
   - The transport grew the two paths this needed: `request_multipart` (hand-encoded multipart body — no new dependencies) and `request_bytes` (raw binary response). Fax error envelopes carry an extra `serverTime` field, parsed tolerantly.
+- Typed error kinds for HTTP 402 (`PaymentRequired` — positive balance required: fax send, directory listing) and HTTP 413 (`PayloadTooLarge` — upload over 8 MiB), both previously mapped to `Unknown`.
 
 ### Breaking
 - `DELETE /v2.2/acl` now sends the same `{"acl": [{"cidr": ...}]}` JSON **body** as `POST /v2.2/acl` (`AclService::remove` takes `&AclModifyRequest`); the server no longer reads the old `cidrs` query parameter. The 409 partial-success shape (`data.removed` / `data.failed`) is unchanged and still decodes via `err.acl_conflict()`.
