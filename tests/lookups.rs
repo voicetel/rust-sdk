@@ -97,7 +97,10 @@ async fn lrn_lookup() {
     let c = test_client(&server).await;
     let out = c.lookups().lrn("2015550123", "2015550100").await.unwrap();
     assert_eq!(out.ani, "2015550100");
-    assert_eq!(out.lrn.as_ref().expect("lrn dip").lrn.as_deref(), Some("2015550100"));
+    assert_eq!(
+        out.lrn.as_ref().expect("lrn dip").lrn.as_deref(),
+        Some("2015550100")
+    );
 }
 
 #[tokio::test]
