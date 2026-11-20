@@ -8,7 +8,7 @@ use reqwest::Method;
 use crate::error::{ApiError, ErrorKind};
 use crate::models::account::AccountApiKeyData;
 use crate::resources::{
-    AccountService, AclService, AuthenticationService, E911Service, GatewaysService,
+    AccountService, AclService, AuthenticationService, E911Service, FaxService, GatewaysService,
     INumberingService, LookupsService, MessagingService, NumbersService, SupportService,
 };
 use crate::transport::Transport;
@@ -208,5 +208,9 @@ impl Client {
     /// `Support` resource handle.
     pub fn support(&self) -> SupportService<'_> {
         SupportService { client: self }
+    }
+    /// `Fax` resource handle.
+    pub fn fax(&self) -> FaxService<'_> {
+        FaxService { client: self }
     }
 }

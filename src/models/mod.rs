@@ -9,6 +9,7 @@ pub mod acl;
 pub mod authentication;
 pub mod common;
 pub mod e911;
+pub mod fax;
 pub mod gateways;
 pub mod inumbering;
 pub mod lookups;

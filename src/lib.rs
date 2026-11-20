@@ -1,9 +1,9 @@
 //! # 📞 VoiceTel Rust SDK
 //!
 //! The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) —
-//! provision numbers, place orders, validate e911, send messages, and manage
-//! your account, with strongly-typed `serde`-derived models and async-first
-//! ergonomics on top of [`reqwest`].
+//! provision numbers, place orders, validate e911, send messages and faxes,
+//! and manage your account, with strongly-typed `serde`-derived models and
+//! async-first ergonomics on top of [`reqwest`].
 //!
 //! ## Quickstart
 //!

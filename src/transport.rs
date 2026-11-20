@@ -18,6 +18,51 @@ use crate::error::{ApiError, ErrorKind};
 /// Retryable HTTP status codes (429 and selected 5xx).
 const RETRYABLE_STATUSES: &[u16] = &[429, 500, 502, 503, 504];
 
+/// One part of a `multipart/form-data` request body.
+///
+/// Built with [`FormPart::field`] (plain text field) or [`FormPart::file`]
+/// (file part with a name and MIME type). Passed to
+/// [`Transport::request_multipart`].
+#[derive(Debug, Clone)]
+pub struct FormPart {
+    /// Form field name.
+    name: String,
+    /// File name — `Some` for file parts, `None` for plain fields.
+    filename: Option<String>,
+    /// Part MIME type. Sent as the part's `Content-Type` header on file
+    /// parts; ignored on plain fields.
+    content_type: Option<String>,
+    /// Part payload.
+    data: Vec<u8>,
+}
+
+impl FormPart {
+    /// A plain text form field.
+    pub fn field(name: impl Into<String>, value: impl AsRef<str>) -> Self {
+        Self {
+            name: name.into(),
+            filename: None,
+            content_type: None,
+            data: value.as_ref().as_bytes().to_vec(),
+        }
+    }
+
+    /// A file part carrying raw bytes, a file name, and a MIME type.
+    pub fn file(
+        name: impl Into<String>,
+        filename: impl Into<String>,
+        content_type: impl Into<String>,
+        data: impl AsRef<[u8]>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            filename: Some(filename.into()),
+            content_type: Some(content_type.into()),
+            data: data.as_ref().to_vec(),
+        }
+    }
+}
+
 /// Internal HTTP client used by every resource service.
 #[derive(Debug, Clone)]
 pub struct Transport {
@@ -61,22 +106,63 @@ impl Transport {
         let raw = self
             .request_raw(method, path, query, body, require_auth)
             .await?;
-        // 204 No Content / empty body for methods returning `()` — handled
-        // by the dedicated `request_no_content` path. Anything else with an
-        // empty body is an error here.
-        if raw.is_empty() {
-            return Err(ApiError::new(
-                ErrorKind::Serialization,
-                "empty response body when one was expected",
-            ));
-        }
-        let inner = unwrap_envelope(&raw)?;
-        serde_json::from_slice::<T>(&inner).map_err(|e| {
-            let mut err = ApiError::new(ErrorKind::Serialization, "decode response body");
-            err.body = Some(String::from_utf8_lossy(&inner).into_owned());
-            err.set_source_internal(Some(Box::new(e)));
-            err
-        })
+        decode_envelope(&raw)
+    }
+
+    /// Perform a `multipart/form-data` request with a JSON-envelope response —
+    /// `POST /v2.2/faxes` (fax send) is the one such endpoint.
+    ///
+    /// `idempotency_key` overrides the `Idempotency-Key` header; when `None`
+    /// a fresh UUID is generated for POST/PUT/PATCH requests, exactly as on
+    /// the JSON path.
+    pub async fn request_multipart<T>(
+        &self,
+        method: Method,
+        path: &str,
+        parts: &[FormPart],
+        require_auth: bool,
+        idempotency_key: Option<&str>,
+    ) -> Result<T, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        self.ensure_auth(require_auth)?;
+        let boundary = format!("voicetel-{}", Uuid::new_v4().simple());
+        let body = build_multipart_body(parts, &boundary);
+        let content_type = Some(format!("multipart/form-data; boundary={}", boundary));
+        let idempotency_key = match idempotency_key {
+            Some(key) => Some(key.to_string()),
+            None if matches!(method, Method::POST | Method::PUT | Method::PATCH) => {
+                Some(Uuid::new_v4().to_string())
+            }
+            None => None,
+        };
+        let url = format!("{}{}", self.base_url, path);
+        let raw = self
+            .send_loop(
+                method,
+                &url,
+                Some(body),
+                content_type.as_deref(),
+                idempotency_key,
+                require_auth,
+            )
+            .await?;
+        decode_envelope(&raw)
+    }
+
+    /// Perform a request whose successful response is a binary payload rather
+    /// than the JSON envelope — `GET /v2.2/faxes/{id}/document` (the PDF
+    /// download) is the one such endpoint. Returns the raw body bytes.
+    pub async fn request_bytes(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(&str, String)],
+        require_auth: bool,
+    ) -> Result<Vec<u8>, ApiError> {
+        self.request_raw::<()>(method, path, query, None, require_auth)
+            .await
     }
 
     /// Perform a request whose successful response carries no body
@@ -98,8 +184,8 @@ impl Transport {
         Ok(())
     }
 
-    /// Inner request loop. Returns the raw response body bytes on 2xx,
-    /// or an `ApiError` for any other outcome.
+    /// Inner request loop for the JSON path. Returns the raw response body
+    /// bytes on 2xx, or an `ApiError` for any other outcome.
     async fn request_raw<B>(
         &self,
         method: Method,
@@ -111,12 +197,7 @@ impl Transport {
     where
         B: Serialize + ?Sized,
     {
-        if require_auth && self.api_key().is_none() {
-            return Err(ApiError::new(
-                ErrorKind::Authentication,
-                "no api key set; call Client::login or use Client::builder().api_key(...)",
-            ));
-        }
+        self.ensure_auth(require_auth)?;
 
         let mut url = format!("{}{}", self.base_url, path);
         if !query.is_empty() {
@@ -140,17 +221,43 @@ impl Transport {
         let idempotency_key = matches!(method, Method::POST | Method::PUT | Method::PATCH)
             .then(|| Uuid::new_v4().to_string());
 
+        self.send_loop(
+            method,
+            &url,
+            body_bytes,
+            body.map(|_| "application/json"),
+            idempotency_key,
+            require_auth,
+        )
+        .await
+    }
+
+    /// Shared request loop: send, retry transient failures (429 / 5xx with
+    /// exponential backoff), and return the raw body bytes on 2xx or an
+    /// `ApiError` otherwise.
+    async fn send_loop(
+        &self,
+        method: Method,
+        url: &str,
+        body: Option<Vec<u8>>,
+        content_type: Option<&str>,
+        idempotency_key: Option<String>,
+        require_auth: bool,
+    ) -> Result<Vec<u8>, ApiError> {
         let mut attempt: u32 = 0;
         loop {
             let mut req = self
                 .http
-                .request(method.clone(), &url)
+                .request(method.clone(), url)
                 .header(header::USER_AGENT, &self.user_agent)
                 .header(header::ACCEPT, "application/json")
                 .header(header::ACCEPT_ENCODING, "gzip");
-            if let Some(ref bytes) = body_bytes {
+            if let Some(ref bytes) = body {
                 req = req
-                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(
+                        header::CONTENT_TYPE,
+                        content_type.unwrap_or("application/json"),
+                    )
                     .body(bytes.clone());
             }
             if require_auth {
@@ -202,6 +309,95 @@ impl Transport {
             return decode(status, bytes);
         }
     }
+
+    /// Reject an authenticated call before any request goes out when no API
+    /// key is installed.
+    fn ensure_auth(&self, require_auth: bool) -> Result<(), ApiError> {
+        if require_auth && self.api_key().is_none() {
+            return Err(ApiError::new(
+                ErrorKind::Authentication,
+                "no api key set; call Client::login or use Client::builder().api_key(...)",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Decode a successful JSON-envelope response: reject an empty body, strip
+/// the `{status, data}` wrapper, and deserialize the inner payload as `T`.
+fn decode_envelope<T: DeserializeOwned>(raw: &[u8]) -> Result<T, ApiError> {
+    // 204 No Content / empty body for methods returning `()` — handled
+    // by the dedicated `request_no_content` path. Anything else with an
+    // empty body is an error here.
+    if raw.is_empty() {
+        return Err(ApiError::new(
+            ErrorKind::Serialization,
+            "empty response body when one was expected",
+        ));
+    }
+    let inner = unwrap_envelope(raw)?;
+    serde_json::from_slice::<T>(&inner).map_err(|e| {
+        let mut err = ApiError::new(ErrorKind::Serialization, "decode response body");
+        err.body = Some(String::from_utf8_lossy(&inner).into_owned());
+        err.set_source_internal(Some(Box::new(e)));
+        err
+    })
+}
+
+/// Serialize the parts into a `multipart/form-data` body delimited by
+/// `boundary`, following RFC 7578: each part carries a
+/// `Content-Disposition: form-data` header (with `filename` and a part
+/// `Content-Type` on file parts), and the body ends with a closing
+/// `--boundary--` delimiter.
+pub(crate) fn build_multipart_body(parts: &[FormPart], boundary: &str) -> Vec<u8> {
+    let mut body = Vec::new();
+    for part in parts {
+        body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+        match &part.filename {
+            Some(filename) => {
+                body.extend_from_slice(
+                    format!(
+                        "Content-Disposition: form-data; name=\"{}\"; filename=\"{}\"\r\n",
+                        sanitize_part_header(&part.name),
+                        sanitize_part_header(filename)
+                    )
+                    .as_bytes(),
+                );
+                body.extend_from_slice(
+                    format!(
+                        "Content-Type: {}\r\n",
+                        part.content_type
+                            .as_deref()
+                            .unwrap_or("application/octet-stream")
+                    )
+                    .as_bytes(),
+                );
+            }
+            None => {
+                body.extend_from_slice(
+                    format!(
+                        "Content-Disposition: form-data; name=\"{}\"\r\n",
+                        sanitize_part_header(&part.name)
+                    )
+                    .as_bytes(),
+                );
+            }
+        }
+        body.extend_from_slice(b"\r\n");
+        body.extend_from_slice(&part.data);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{}--\r\n", boundary).as_bytes());
+    body
+}
+
+/// Make a `Content-Disposition` name or filename safe to embed in a quoted
+/// string: drop CR/LF (header folding) and neutralise quotes/backslashes.
+fn sanitize_part_header(value: &str) -> String {
+    value
+        .replace(['\r', '\n'], "")
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
 }
 
 /// Inspect a final response: return bytes on 2xx; build an `ApiError` otherwise.
@@ -349,5 +545,60 @@ mod tests {
         assert_eq!(backoff_delay(0, None), Duration::from_millis(500));
         assert_eq!(backoff_delay(1, None), Duration::from_millis(1000));
         assert_eq!(backoff_delay(10, None), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn multipart_body_lays_out_fields_and_files() {
+        let parts = vec![
+            FormPart::field("fromNumber", "2015550123"),
+            FormPart::file(
+                "documents",
+                "contract.pdf",
+                "application/pdf",
+                &b"%PDF-1.4 bytes"[..],
+            ),
+        ];
+        let body = build_multipart_body(&parts, "voicetel-test-boundary");
+        let text = String::from_utf8(body.clone()).unwrap();
+        assert_eq!(
+            text,
+            "--voicetel-test-boundary\r\n\
+             Content-Disposition: form-data; name=\"fromNumber\"\r\n\
+             \r\n\
+             2015550123\r\n\
+             --voicetel-test-boundary\r\n\
+             Content-Disposition: form-data; name=\"documents\"; filename=\"contract.pdf\"\r\n\
+             Content-Type: application/pdf\r\n\
+             \r\n\
+             %PDF-1.4 bytes\r\n\
+             --voicetel-test-boundary--\r\n"
+        );
+    }
+
+    #[test]
+    fn multipart_body_escapes_header_metacharacters() {
+        let parts = vec![FormPart::file(
+            "documents",
+            "qu\"ote\\name.pdf",
+            "application/pdf",
+            b"x",
+        )];
+        let text = String::from_utf8(build_multipart_body(&parts, "b")).unwrap();
+        assert!(text.contains("filename=\"qu\\\"ote\\\\name.pdf\""));
+    }
+
+    #[test]
+    fn multipart_file_part_carries_binary_payload_intact() {
+        let data = vec![0x00, 0xff, 0x0a, 0x0d, 0x25, 0x50];
+        let parts = vec![FormPart::file(
+            "documents",
+            "a.pdf",
+            "application/pdf",
+            &data,
+        )];
+        let body = build_multipart_body(&parts, "b");
+        let suffix = b"\r\n--b--\r\n";
+        let end = body.len() - suffix.len();
+        assert_eq!(&body[end - data.len()..end], &data[..]);
     }
 }

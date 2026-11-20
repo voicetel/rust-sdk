@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.2.21 — 2026-11-20
+
+Spec v2.2.21 audit release: the new Fax API, plus a breaking wire fix on `DELETE /v2.2/acl`.
+
+### Added
+- **Fax API** (new `Fax` resource, `client.fax()`):
+  - `numbers()` — `GET /v2.2/numbers/fax`, every fax-capable number on the account with the email each delivers to (`destinationId` 0 = account email).
+  - `send(&FaxSendRequest)` — `POST /v2.2/faxes` as `multipart/form-data` (`fromNumber`, `toNumber`, 1–10 PDF/DOC/DOCX documents); the required client-generated UUID `Idempotency-Key` header defaults to a fresh UUID and can be overridden for resubmission-dedupe. Rate-limited to 10 sends/minute/account.
+  - `history(&FaxHistoryOptions)` — `GET /v2.2/faxes` with `number` (required), `from`/`to` unix-second range, `limit`, `cursor`, `status` filter; newest first.
+  - `get(id)` — `GET /v2.2/faxes/{id}`, one job with status/timestamps/attempts/documents.
+  - `document(id)` — `GET /v2.2/faxes/{id}/document`, the rendered PDF as raw bytes.
+  - The transport grew the two paths this needed: `request_multipart` (hand-encoded multipart body — no new dependencies) and `request_bytes` (raw binary response). Fax error envelopes carry an extra `serverTime` field, parsed tolerantly.
+
+### Breaking
+- `DELETE /v2.2/acl` now sends the same `{"acl": [{"cidr": ...}]}` JSON **body** as `POST /v2.2/acl` (`AclService::remove` takes `&AclModifyRequest`); the server no longer reads the old `cidrs` query parameter. The 409 partial-success shape (`data.removed` / `data.failed`) is unchanged and still decodes via `err.acl_conflict()`.
+
 ## 2.2.20 — 2026-11-20
 
 Spec v2.2.20 sync. Adds the four new operations and tracks the truth fixes from spec v2.2.18–v2.2.20.

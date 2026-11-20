@@ -2,7 +2,7 @@
 
 The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed `serde` models and an async-first ergonomics on top of [`reqwest`].
 
-![Version](https://img.shields.io/badge/version-2.2.20-blue)
+![Version](https://img.shields.io/badge/version-2.2.21-blue)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
@@ -27,7 +27,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 ## ✨ Features
 
 ### 🛡️ Strongly Typed End-to-End
-- **`#[derive(Serialize, Deserialize)]` on every model** — 83 operations across 10 resources, no `serde_json::Value` smuggling.
+- **`#[derive(Serialize, Deserialize)]` on every model** — 88 operations across 11 resources, no `serde_json::Value` smuggling.
 - **`Option<T>` + `skip_serializing_if`** on optional request fields — distinguish "not set" from "zero" cleanly when PATCH-ing.
 - **`Option<T>` for nullable response fields** — `forward_to: Option<String>` lets you tell apart "no forward configured" from an empty destination.
 - **Wire-name aware** — `fromNumber`, `localRoutingNumber`, `rateCenterTier`, `ticketNumber` and friends are all surfaced under idiomatic snake_case Rust names via `#[serde(rename = ...)]`.
@@ -39,9 +39,11 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 - **Bearer auth** managed for you; the password→key exchange is one method call (`Client::login`).
 - **Structured `ApiError`** with typed `kind: ErrorKind` so you can `match err.kind { ErrorKind::RateLimit => ... }` without parsing HTTP status codes.
 - **Envelope unwrap** — `{"status":"success","data": ...}` is stripped before the response hits your code.
+- **Multipart + binary** — `POST /v2.2/faxes` goes out as hand-encoded `multipart/form-data` (no extra dependencies) with a client-generated UUID `Idempotency-Key`, and `GET /v2.2/faxes/{id}/document` returns the raw PDF bytes.
 
 ### 📞 Complete API Coverage
 - **Numbers** — list, get, add, remove, route, translate, CNAM, LIDB, fax, forward, SMS, messaging campaigns, port-out PIN, 411 directory listing, account moves.
+- **Fax** — send faxes (multipart, idempotent per `Idempotency-Key`), list fax-capable numbers, read job history and single jobs, download the rendered PDF document.
 - **Account** — profile, sub-accounts, CDRs, credits, payments, MRC, registration, password recovery.
 - **e911** — record provisioning, address validation, lookup, removal.
 - **Gateways** — list, create, update, delete, view bound numbers.
@@ -53,7 +55,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 - **Authentication** — switch between Digest, IP-only, or hybrid modes; rotate passwords.
 
 ### 🧪 Battle-Tested
-- **109 tests** + 2 doc-tests + 2 integration tests via **`wiremock`**.
+- **122 tests** + 2 doc-tests + 2 integration tests via **`wiremock`**.
 - **93% line coverage** (cargo-tarpaulin, llvm engine).
 - Every method's happy path and error path covered.
 - **`cargo fmt --check`** clean.
@@ -67,7 +69,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 
 ```toml
 [dependencies]
-voicetel = "2.2.20"
+voicetel = "2.2.21"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -155,6 +157,7 @@ let key = client.login("1000000001", "hunter2").await?;
 | Messaging | `client.messaging()` | `client.messaging().send(&body).await?` |
 | Numbers | `client.numbers()` | `client.numbers().assign_campaign("2015550123", &body).await?` |
 | Support | `client.support()` | `client.support().create(&body).await?` |
+| Fax | `client.fax()` | `client.fax().send(&FaxSendRequest { .. }).await?` |
 
 Optional request fields are `Option<T>` — use `Some(...)` or the `..Default::default()` syntax to leave them unset:
 
@@ -267,6 +270,8 @@ These endpoints are limited to **6 requests per hour per IP**:
 - `account/api-key` (`Client::login`)
 
 `POST /v2.2/messaging/health/check` (`MessagingService::health_check`) is separately limited to **30 checks per hour per account**.
+
+`POST /v2.2/faxes` (`FaxService::send`) is limited to **10 sends per minute per account** (`Retry-After: 60`).
 
 The SDK automatically retries 429 responses with `Retry-After` honoured (capped at 8s), up to `max_retries(n)` (default 2):
 

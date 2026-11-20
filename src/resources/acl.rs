@@ -29,14 +29,15 @@ impl<'c> AclService<'c> {
             .await
     }
 
-    /// `DELETE /v2.2/acl` — remove CIDR entries. The entries go in the
-    /// required `cidrs` query parameter (comma-separated); DELETE carries no
-    /// body. Returns 200 with a body (not 204).
-    pub async fn remove(&self, cidrs: &[String]) -> Result<AclRemoveData, ApiError> {
-        let q = vec![("cidrs", cidrs.join(","))];
+    /// `DELETE /v2.2/acl` — remove CIDR entries. Sends the same
+    /// `{"acl": [{"cidr": ...}]}` JSON body as [`Self::add`]; the server
+    /// no longer reads the old `cidrs` query parameter. Returns 200 with a
+    /// body (not 204). A 409 carries the partially-removed set via
+    /// [`ApiError::acl_conflict`](crate::ApiError::acl_conflict).
+    pub async fn remove(&self, body: &AclModifyRequest) -> Result<AclRemoveData, ApiError> {
         self.client
             .transport
-            .request::<(), AclRemoveData>(Method::DELETE, "/v2.2/acl", &q, None, true)
+            .request(Method::DELETE, "/v2.2/acl", &[], Some(body), true)
             .await
     }
 }

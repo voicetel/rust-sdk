@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 
 use super::common::CidrEntry;
 
-/// Body for `POST /v2.2/acl` (add). Removal uses a `cidrs` query parameter
-/// instead — see [`AclService::remove`](crate::resources::acl::AclService::remove).
+/// Body for `POST /v2.2/acl` (add) and `DELETE /v2.2/acl` (remove) — both
+/// take the same JSON shape.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AclModifyRequest {
-    /// CIDR entries to add.
+    /// CIDR entries to add or remove.
     pub acl: Vec<CidrEntry>,
 }
 
