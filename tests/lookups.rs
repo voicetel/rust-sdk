@@ -97,5 +97,24 @@ async fn lrn_lookup() {
     let c = test_client(&server).await;
     let out = c.lookups().lrn("2015550123", "2015550100").await.unwrap();
     assert_eq!(out.ani, "2015550100");
-    assert_eq!(out.lrn.lrn.as_deref(), Some("2015550100"));
+    assert_eq!(out.lrn.as_ref().expect("lrn dip").lrn.as_deref(), Some("2015550100"));
+}
+
+#[tokio::test]
+async fn lrn_lookup_no_record() {
+    // v2.2.21: a failed dip is 200 with lrn:null — still billed.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/lrn/2015550123/2015550100"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "ani": "2015550100", "destination": "2015550123", "lrn": null
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let out = c.lookups().lrn("2015550123", "2015550100").await.unwrap();
+    assert_eq!(out.ani, "2015550100");
+    assert!(out.lrn.is_none());
 }

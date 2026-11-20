@@ -94,6 +94,8 @@ pub struct LrnLookupData {
     pub ani: String,
     /// Echoed destination TN.
     pub destination: String,
-    /// LRN dip detail.
-    pub lrn: LrnData,
+    /// LRN dip detail — `None` when the dip found no record (still 200,
+    /// still billed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lrn: Option<LrnData>,
 }
