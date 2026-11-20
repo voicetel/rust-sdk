@@ -16,8 +16,9 @@ pub enum OrderNumber {
     WithRoute {
         /// 10-digit TN.
         number: String,
-        /// Global route type for numbers in this order: `1` USER, `2` T30,
-        /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+        /// Route for numbers in this order: a gateway id on this account
+        /// (`GET /v2.2/gateways`) or a global route: `1` USER, `2` T30, `3`
+        /// VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
         /// `9` MOBILE.
         route: Option<i32>,
     },
@@ -333,6 +334,17 @@ pub struct OrderFailedEntry {
     pub reason: String,
 }
 
+/// One row in [`OrderCreateData::routes`] — the route each ordered number
+/// was placed on.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct OrderRoute {
+    /// 10-digit TN.
+    pub number: String,
+    /// Gateway id or global route the number was placed on.
+    pub route: i32,
+}
+
 /// Response data for `POST /v2.2/orders`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -346,6 +358,9 @@ pub struct OrderCreateData {
     /// TNs that were successfully ordered.
     #[serde(rename = "numbersOrdered")]
     pub numbers_ordered: Vec<String>,
+    /// The route each ordered number was placed on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub routes: Vec<OrderRoute>,
     /// TNs that failed to order, with reason.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<OrderFailedEntry>,

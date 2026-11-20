@@ -153,6 +153,58 @@ impl<'c> NumbersService<'c> {
             .await
     }
 
+    /// `GET /v2.2/numbers/{number}/directory-listing` — the 411 listing
+    /// state as published.
+    pub async fn get_directory_listing(
+        &self,
+        number: &str,
+    ) -> Result<DirectoryListingData, ApiError> {
+        let path = format!(
+            "/v2.2/numbers/{}/directory-listing",
+            encode_path_segment(number)
+        );
+        self.client
+            .transport
+            .request::<(), DirectoryListingData>(Method::GET, &path, &[], None, true)
+            .await
+    }
+
+    /// `PUT /v2.2/numbers/{number}/directory-listing` — add or replace the
+    /// 411 listing. Accepted at once (HTTP 202) and applied in the
+    /// background; the returned `status` is `pending`.
+    pub async fn set_directory_listing(
+        &self,
+        number: &str,
+        body: &DirectoryListingRequest,
+    ) -> Result<DirectoryListingData, ApiError> {
+        let path = format!(
+            "/v2.2/numbers/{}/directory-listing",
+            encode_path_segment(number)
+        );
+        self.client
+            .transport
+            .request(Method::PUT, &path, &[], Some(body), true)
+            .await
+    }
+
+    /// `DELETE /v2.2/numbers/{number}/directory-listing` — remove the
+    /// published listing, or cancel a pending add. Accepted at once
+    /// (HTTP 202) and applied in the background; the returned `status` is
+    /// `removing` (or `not_listed` when a pending add was cancelled).
+    pub async fn remove_directory_listing(
+        &self,
+        number: &str,
+    ) -> Result<DirectoryListingData, ApiError> {
+        let path = format!(
+            "/v2.2/numbers/{}/directory-listing",
+            encode_path_segment(number)
+        );
+        self.client
+            .transport
+            .request::<(), DirectoryListingData>(Method::DELETE, &path, &[], None, true)
+            .await
+    }
+
     /// `PUT /v2.2/numbers/{number}/forward` — enable call forwarding.
     pub async fn set_forward(
         &self,

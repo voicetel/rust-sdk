@@ -99,6 +99,43 @@ async fn order_string_or_object() {
 }
 
 #[tokio::test]
+async fn order_returns_routes_per_number() {
+    // v2.2.20: POST /v2.2/orders reports the route each ordered number was
+    // placed on (a gateway id or a global route — not just the 1-9 enum).
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v2.2/orders"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "orderId": "ord_2",
+                "amountCharged": 1.0,
+                "numbersOrdered": ["2015550100", "2015550101"],
+                "routes": [
+                    {"number": "2015550100", "route": 4},
+                    {"number": "2015550101", "route": 12}
+                ],
+                "failed": []
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let body = OrderCreateRequest {
+        numbers: vec![
+            OrderNumber::plain("2015550100"),
+            OrderNumber::with_route("2015550101", 12),
+        ],
+    };
+    let out = c.i_numbering().order(&body).await.unwrap();
+    assert_eq!(out.routes.len(), 2);
+    assert_eq!(out.routes[0].number, "2015550100");
+    assert_eq!(out.routes[0].route, 4);
+    assert_eq!(out.routes[1].number, "2015550101");
+    // Gateway ids (not in the global 1-9 set) round-trip fine.
+    assert_eq!(out.routes[1].route, 12);
+}
+
+#[tokio::test]
 async fn ports_and_port() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))

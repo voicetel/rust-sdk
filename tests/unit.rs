@@ -8,7 +8,9 @@ use voicetel::models::inumbering::{
 };
 use voicetel::models::messaging::{MessageHistoryData, MessageSendRequest};
 use voicetel::models::numbers::{
-    CampaignAssignStatus, MessagingEnablementJob, MessagingEnablementJobState, NumberDetail,
+    CampaignAssignStatus, DirectoryListingData, DirectoryListingRequest,
+    DirectoryListingRequestType, DirectoryListingStatus, DirectoryListingType,
+    MessagingEnablementJob, MessagingEnablementJobState, NumberDetail,
     NumberMessagingCampaignAssignData, NumberMessagingState, NumberMoveData, OrderId,
     PortOutPinUpdateData,
 };
@@ -69,7 +71,7 @@ fn message_send_request_renames_fields() {
     let body = MessageSendRequest {
         from_number: "2015550123".into(),
         to_number: "2015555678".into(),
-        text: "hi".into(),
+        text: Some("hi".into()),
         subject: None,
         media_urls: vec![],
     };
@@ -77,6 +79,21 @@ fn message_send_request_renames_fields() {
     assert!(v.get("fromNumber").is_some());
     assert!(v.get("toNumber").is_some());
     assert!(v.get("from_number").is_none());
+}
+
+#[test]
+fn message_send_request_omits_unset_text() {
+    // v2.2.20: text is optional — a media-only MMS sends no `text` field.
+    let body = MessageSendRequest {
+        from_number: "2015550123".into(),
+        to_number: "2015555678".into(),
+        text: None,
+        subject: None,
+        media_urls: vec!["https://example.com/photo.jpg".into()],
+    };
+    let v = serde_json::to_value(&body).unwrap();
+    assert!(v.get("text").is_none());
+    assert!(v.get("mediaUrls").is_some());
 }
 
 #[test]
@@ -225,6 +242,100 @@ fn port_out_pin_update_data_reports_changed() {
     let v = serde_json::to_value(&d).unwrap();
     assert_eq!(v["portOutPin"], serde_json::json!("1234"));
     assert_eq!(v["changed"], serde_json::json!(false));
+}
+
+#[test]
+fn directory_listing_status_wire_values() {
+    for (wire, variant) in [
+        ("listed", DirectoryListingStatus::Listed),
+        ("not_listed", DirectoryListingStatus::NotListed),
+        ("pending", DirectoryListingStatus::Pending),
+        ("removing", DirectoryListingStatus::Removing),
+        ("unavailable", DirectoryListingStatus::Unavailable),
+    ] {
+        assert_eq!(
+            serde_json::to_value(variant).unwrap(),
+            serde_json::json!(wire)
+        );
+        let back: DirectoryListingStatus = serde_json::from_str(&format!("\"{}\"", wire)).unwrap();
+        assert_eq!(back, variant);
+    }
+    assert!(serde_json::from_str::<DirectoryListingStatus>("\"gone\"").is_err());
+}
+
+#[test]
+fn directory_listing_types_wire_values() {
+    assert_eq!(
+        serde_json::to_value(DirectoryListingType::Business).unwrap(),
+        serde_json::json!("B")
+    );
+    assert_eq!(
+        serde_json::to_value(DirectoryListingType::Residence).unwrap(),
+        serde_json::json!("R")
+    );
+    let t: DirectoryListingType = serde_json::from_str("\"R\"").unwrap();
+    assert_eq!(t, DirectoryListingType::Residence);
+    assert_eq!(
+        serde_json::to_value(DirectoryListingRequestType::Business).unwrap(),
+        serde_json::json!("business")
+    );
+    assert_eq!(
+        serde_json::to_value(DirectoryListingRequestType::Residence).unwrap(),
+        serde_json::json!("residence")
+    );
+}
+
+#[test]
+fn directory_listing_request_wire_shape() {
+    let body = DirectoryListingRequest {
+        kind: DirectoryListingRequestType::Business,
+        name: Some("Acme Corp".into()),
+        first_name: None,
+        last_name: None,
+        street_number: Some("100".into()),
+        street_name: Some("Broadway".into()),
+        street_type: Some("St".into()),
+        street_suffix: None,
+        location: Some("Suite 900".into()),
+        city: "New York".into(),
+        state: "NY".into(),
+        zip: "10005".into(),
+    };
+    let v = serde_json::to_value(&body).unwrap();
+    assert_eq!(v["type"], serde_json::json!("business"));
+    assert_eq!(v["name"], serde_json::json!("Acme Corp"));
+    assert_eq!(v["streetNumber"], serde_json::json!("100"));
+    assert_eq!(v["firstName"], serde_json::Value::Null);
+    assert!(v.get("firstName").is_none());
+    assert!(v.get("lastName").is_none());
+    assert_eq!(v["city"], serde_json::json!("New York"));
+    assert_eq!(v["zip"], serde_json::json!("10005"));
+}
+
+#[test]
+fn directory_listing_data_decodes_published_and_pending() {
+    let raw = r#"{
+        "number": "2015550123",
+        "status": "listed",
+        "eligible": true,
+        "listing": {
+            "type": "B", "name": "Acme Corp",
+            "streetNumber": "100", "streetName": "Broadway", "streetType": "St",
+            "streetSuffix": "", "location": "Suite 900",
+            "city": "New York", "state": "NY", "zip": "10005",
+            "complex": false
+        },
+        "pending": null
+    }"#;
+    let d: DirectoryListingData = serde_json::from_str(raw).unwrap();
+    assert_eq!(d.status, DirectoryListingStatus::Listed);
+    assert_eq!(d.eligible, Some(true));
+    let listing = d.listing.as_ref().expect("listing");
+    assert_eq!(listing.kind, DirectoryListingType::Business);
+    assert_eq!(listing.name.as_deref(), Some("Acme Corp"));
+    assert_eq!(listing.complex, Some(false));
+    assert!(d.pending.is_none());
+    assert!(d.order_id.is_none());
 }
 
 #[test]

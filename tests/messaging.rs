@@ -30,13 +30,50 @@ async fn message_send_uses_camelcase_wire_fields() {
     let body = MessageSendRequest {
         from_number: "2015550123".into(),
         to_number: "2015555678".into(),
-        text: "hi".into(),
+        text: Some("hi".into()),
         subject: None,
         media_urls: vec![],
     };
     let out = c.messaging().send(&body).await.unwrap();
     assert_eq!(out.id, "msg_1");
     assert_eq!(out.from_number, "2015550123");
+}
+
+#[tokio::test]
+async fn message_send_media_only_mms_omits_text() {
+    // v2.2.20: text is optional — a media-only MMS sends no `text` field.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v2.2/messages"))
+        .and(body_partial_json(serde_json::json!({
+            "fromNumber": "2015550123",
+            "toNumber": "2015555678",
+            "mediaUrls": ["https://example.com/photo.jpg"]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "id": "msg_2", "type": "mms",
+                "fromNumber": "2015550123", "toNumber": "2015555678",
+                "parts": 1,
+                "mediaUrls": ["https://example.com/photo.jpg"]
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let body = MessageSendRequest {
+        from_number: "2015550123".into(),
+        to_number: "2015555678".into(),
+        text: None,
+        subject: None,
+        media_urls: vec!["https://example.com/photo.jpg".into()],
+    };
+    let out = c.messaging().send(&body).await.unwrap();
+    assert_eq!(out.kind, "mms");
+    assert_eq!(
+        out.media_urls,
+        vec!["https://example.com/photo.jpg".to_string()]
+    );
 }
 
 #[tokio::test]
@@ -72,6 +109,78 @@ async fn message_history() {
     assert_eq!(out.kind, "sms");
     // v2.2.15: the far-end `number` inside a message record is a string.
     assert_eq!(out.messages[0].value.number.as_deref(), Some("2015550199"));
+}
+
+#[tokio::test]
+async fn message_history_record_v2_2_20_fields() {
+    // v2.2.20: records carry messageText / transactionGUID /
+    // concatenatedMessage (dlr), attachments / subject (mms), and ip
+    // (outbound sms) — all nullable optionals.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/messages"))
+        .and(query_param("number", "2015550123"))
+        .and(query_param("type", "mms"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "type": "mms",
+                "fromTs": 1747345200, "toTs": 1747258800,
+                "messages": [
+                    {
+                        "id": "dlr1",
+                        "key": ["1000000001", "12015550123", 1747345100],
+                        "value": {
+                            "sourceNumber": "12015550123",
+                            "destinationNumber": "12015550100",
+                            "messageText": "id:1 sub:001 stat:DELIVRD err:000 text:delivered",
+                            "transactionGUID": "abc-123",
+                            "concatenatedMessage": "2"
+                        }
+                    },
+                    {
+                        "id": "mms1",
+                        "key": ["1000000001", "2015550123", 1747340000],
+                        "value": {
+                            "direction": "out",
+                            "number": "2015550199",
+                            "message": "",
+                            "rate": "0.0250",
+                            "subject": "Invoice",
+                            "ip": "203.0.113.10",
+                            "attachments": [
+                                {"contentFile": "https://files.example.com/f.jpg",
+                                 "Content-Type": "image/jpeg",
+                                 "fileName": "f.jpg",
+                                 "extension": "jpg"}
+                            ]
+                        }
+                    }
+                ]
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let opts = HistoryOptions {
+        number: "2015550123".into(),
+        from: None,
+        to: None,
+        kind: Some("mms".into()),
+    };
+    let out = c.messaging().history(&opts).await.unwrap();
+    let dlr = &out.messages[0].value;
+    assert_eq!(dlr.source_number.as_deref(), Some("12015550123"));
+    assert_eq!(
+        dlr.message_text.as_deref(),
+        Some("id:1 sub:001 stat:DELIVRD err:000 text:delivered")
+    );
+    assert_eq!(dlr.transaction_guid.as_deref(), Some("abc-123"));
+    assert_eq!(dlr.concatenated_message.as_deref(), Some("2"));
+    let mms = &out.messages[1].value;
+    assert_eq!(mms.subject.as_deref(), Some("Invoice"));
+    assert_eq!(mms.ip.as_deref(), Some("203.0.113.10"));
+    let att = mms.attachments.as_ref().expect("attachments");
+    assert_eq!(att[0]["fileName"], "f.jpg");
 }
 
 #[tokio::test]

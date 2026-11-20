@@ -4,7 +4,7 @@ mod common;
 use common::{envelope, test_client};
 
 use voicetel::models::numbers::*;
-use wiremock::matchers::{method, path, query_param};
+use wiremock::matchers::{body_partial_json, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -393,6 +393,133 @@ async fn numbers_messaging_lifecycle() {
         .unwrap();
     assert_eq!(pin.port_out_pin, "1234");
     assert!(pin.changed);
+}
+
+#[tokio::test]
+async fn numbers_directory_listing_lifecycle() {
+    // v2.2.20: GET reads the published 411 state; PUT/DELETE are accepted
+    // (202) and applied in the background.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v2.2/numbers/2015550123/directory-listing"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "status": "listed", "eligible": true,
+                "listing": {
+                    "type": "B", "name": "Acme Corp",
+                    "streetNumber": "100", "streetName": "Broadway", "streetType": "St",
+                    "streetSuffix": "", "location": "Suite 900",
+                    "city": "New York", "state": "NY", "zip": "10005", "complex": false
+                },
+                "pending": null
+            }))),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/v2.2/numbers/2015550123/directory-listing"))
+        .and(body_partial_json(serde_json::json!({
+            "type": "business",
+            "name": "Acme Corp",
+            "streetNumber": "100",
+            "streetName": "Broadway",
+            "streetType": "St",
+            "location": "Suite 900",
+            "city": "New York",
+            "state": "NY",
+            "zip": "10005"
+        })))
+        .respond_with(
+            ResponseTemplate::new(202).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "status": "pending", "orderId": "1026472",
+                "listing": {
+                    "type": "B", "name": "Acme Corp",
+                    "streetNumber": "100", "streetName": "Broadway", "streetType": "St",
+                    "streetSuffix": "", "location": "Suite 900",
+                    "city": "New York", "state": "NY", "zip": "10005"
+                }
+            }))),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/v2.2/numbers/2015550123/directory-listing"))
+        .respond_with(
+            ResponseTemplate::new(202).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "status": "removing", "orderId": "1026473"
+            }))),
+        )
+        .mount(&server)
+        .await;
+
+    let c = test_client(&server).await;
+    let state = c
+        .numbers()
+        .get_directory_listing("2015550123")
+        .await
+        .unwrap();
+    assert_eq!(state.status, DirectoryListingStatus::Listed);
+    assert_eq!(state.eligible, Some(true));
+    let listing = state.listing.as_ref().expect("published listing");
+    assert_eq!(listing.kind, DirectoryListingType::Business);
+    assert_eq!(listing.name.as_deref(), Some("Acme Corp"));
+    assert_eq!(listing.complex, Some(false));
+    assert!(state.pending.is_none());
+
+    let put = c
+        .numbers()
+        .set_directory_listing(
+            "2015550123",
+            &DirectoryListingRequest {
+                kind: DirectoryListingRequestType::Business,
+                name: Some("Acme Corp".into()),
+                first_name: None,
+                last_name: None,
+                street_number: Some("100".into()),
+                street_name: Some("Broadway".into()),
+                street_type: Some("St".into()),
+                street_suffix: None,
+                location: Some("Suite 900".into()),
+                city: "New York".into(),
+                state: "NY".into(),
+                zip: "10005".into(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(put.status, DirectoryListingStatus::Pending);
+    assert_eq!(put.order_id.as_deref(), Some("1026472"));
+
+    let del = c
+        .numbers()
+        .remove_directory_listing("2015550123")
+        .await
+        .unwrap();
+    assert_eq!(del.status, DirectoryListingStatus::Removing);
+    assert_eq!(del.order_id.as_deref(), Some("1026473"));
+}
+
+#[tokio::test]
+async fn numbers_directory_listing_delete_cancels_pending_add() {
+    // Cancelling a pending add returns `not_listed` with no `orderId`.
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/v2.2/numbers/2015550123/directory-listing"))
+        .respond_with(
+            ResponseTemplate::new(202).set_body_json(envelope(serde_json::json!({
+                "number": "2015550123", "status": "not_listed"
+            }))),
+        )
+        .mount(&server)
+        .await;
+    let c = test_client(&server).await;
+    let del = c
+        .numbers()
+        .remove_directory_listing("2015550123")
+        .await
+        .unwrap();
+    assert_eq!(del.status, DirectoryListingStatus::NotListed);
+    assert_eq!(del.order_id, None);
 }
 
 #[tokio::test]

@@ -7,7 +7,7 @@ use crate::error::ApiError;
 use crate::models::lookups::*;
 use crate::transport::encode_path_segment;
 
-/// Handle for the `Lookups` resource — CNAM and LRN dips.
+/// Handle for the `Lookups` resource — CNAM, carrier & line-type, and LRN dips.
 ///
 /// Each call costs money; rate them per call rather than fanning out blindly.
 #[derive(Debug)]
@@ -22,6 +22,17 @@ impl<'c> LookupsService<'c> {
         self.client
             .transport
             .request::<(), CnamData>(Method::GET, &path, &[], None, true)
+            .await
+    }
+
+    /// `GET /v2.2/carrier/{number}` — carrier and line type for `number`
+    /// (10-digit TN). Billed per lookup at the account's CNAM rate, only
+    /// when a result comes back.
+    pub async fn carrier(&self, number: &str) -> Result<CarrierData, ApiError> {
+        let path = format!("/v2.2/carrier/{}", encode_path_segment(number));
+        self.client
+            .transport
+            .request::<(), CarrierData>(Method::GET, &path, &[], None, true)
             .await
     }
 

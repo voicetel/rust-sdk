@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 pub struct NumberAddRequest {
     /// 10-digit TN to attach.
     pub number: String,
-    /// Global route type: `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID
-    /// (default), `5` T38, `6` VOICEML, `8` SDN, `9` MOBILE. Defaults to `4`
-    /// (DID) on the server when omitted.
+    /// A gateway id on this account (`GET /v2.2/gateways`) or a global
+    /// route: `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID (default), `5`
+    /// T38, `6` VOICEML, `8` SDN, `9` MOBILE. Defaults to `4` (DID) on the
+    /// server when omitted; an unknown route is rejected with 400.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub route: Option<i32>,
 }
@@ -17,8 +18,10 @@ pub struct NumberAddRequest {
 /// Body for `PUT /v2.2/numbers/{number}/route`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NumberRouteRequest {
-    /// Global route type to install: `1` USER, `2` T30, `3` VOICE_BRIDGE,
-    /// `4` DID (default), `5` T38, `6` VOICEML, `8` SDN, `9` MOBILE.
+    /// Route to install: a gateway id on this account
+    /// (`GET /v2.2/gateways`) or a global route: `1` USER, `2` T30, `3`
+    /// VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// `9` MOBILE.
     pub route: i32,
 }
 
@@ -101,7 +104,8 @@ pub struct NumberMoveRequest {
     /// Destination account ID.
     #[serde(rename = "accountId")]
     pub account_id: i64,
-    /// Route on the destination account after the move — global route type:
+    /// Route on the destination account after the move — a gateway id on
+    /// the destination account (`GET /v2.2/gateways`) or a global route:
     /// `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID (default), `5` T38,
     /// `6` VOICEML, `8` SDN, `9` MOBILE.
     pub route: i32,
@@ -123,8 +127,10 @@ pub struct NumberDetail {
     pub number: String,
     /// DNIS translation in effect.
     pub translated: String,
-    /// Global route type: `1` USER, `2` T30, `3` VOICE_BRIDGE, `4` DID
-    /// (default), `5` T38, `6` VOICEML, `8` SDN, `9` MOBILE.
+    /// Route in effect: a gateway id on this account
+    /// (`GET /v2.2/gateways`) or a global route: `1` USER, `2` T30, `3`
+    /// VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// `9` MOBILE.
     pub route: i32,
     /// Gateway IP/hostname, if any.
     pub gateway: Option<String>,
@@ -241,8 +247,9 @@ pub struct NumberMessagingState {
 pub struct NumberAddData {
     /// 10-digit TN.
     pub number: String,
-    /// Global route type that was installed: `1` USER, `2` T30,
-    /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// Route that was installed: a gateway id on this account
+    /// (`GET /v2.2/gateways`) or a global route: `1` USER, `2` T30, `3`
+    /// VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
     /// `9` MOBILE.
     pub route: i32,
 }
@@ -313,7 +320,8 @@ pub struct NumberMoveData {
     /// Destination account ID.
     #[serde(rename = "accountId")]
     pub account_id: i64,
-    /// Global route type installed on the destination: `1` USER, `2` T30,
+    /// Route installed on the destination: a gateway id on the destination
+    /// account (`GET /v2.2/gateways`) or a global route: `1` USER, `2` T30,
     /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
     /// `9` MOBILE.
     pub route: i32,
@@ -325,8 +333,9 @@ pub struct NumberMoveData {
 pub struct NumberRouteData {
     /// 10-digit TN.
     pub number: String,
-    /// Echo of the applied global route type: `1` USER, `2` T30,
-    /// `3` VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
+    /// Echo of the applied route: a gateway id on this account
+    /// (`GET /v2.2/gateways`) or a global route: `1` USER, `2` T30, `3`
+    /// VOICE_BRIDGE, `4` DID (default), `5` T38, `6` VOICEML, `8` SDN,
     /// `9` MOBILE.
     pub route: i32,
 }
@@ -523,4 +532,209 @@ pub struct PortOutPinUpdateData {
     /// `true` if this request set the PIN; `false` if the number already had
     /// one, which is locked for 30 days once set and is returned unchanged.
     pub changed: bool,
+}
+
+// --------------------------------------------------------- directory listing
+
+/// Listing type of a published [`DirectoryListing`]: `B` (business) or `R`
+/// (residence).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DirectoryListingType {
+    /// Business listing (carries `name`).
+    #[default]
+    #[serde(rename = "B")]
+    Business,
+    /// Residence listing (carries `firstName` / `lastName`).
+    #[serde(rename = "R")]
+    Residence,
+}
+
+/// Listing type accepted by `PUT /v2.2/numbers/{number}/directory-listing`:
+/// `business` or `residence` (the `B` / `R` shorthand is also accepted by
+/// the server).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DirectoryListingRequestType {
+    /// Business listing (carries `name`).
+    #[default]
+    #[serde(rename = "business")]
+    Business,
+    /// Residence listing (carries `firstName` / `lastName`).
+    #[serde(rename = "residence")]
+    Residence,
+}
+
+/// Lifecycle status of a number's directory (411) listing.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DirectoryListingStatus {
+    /// Published.
+    #[default]
+    #[serde(rename = "listed")]
+    Listed,
+    /// No listing.
+    #[serde(rename = "not_listed")]
+    NotListed,
+    /// An add or change is being applied.
+    #[serde(rename = "pending")]
+    Pending,
+    /// A removal is being applied.
+    #[serde(rename = "removing")]
+    Removing,
+    /// The number cannot be listed.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+}
+
+/// A directory (411) listing as published — or, in the `PUT` response, as
+/// submitted (without `complex`).
+///
+/// `Business` listings carry the business name in `name`; `Residence`
+/// listings carry `firstName` / `lastName`. All address fields may be empty
+/// strings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct DirectoryListing {
+    /// Listing type.
+    #[serde(rename = "type")]
+    pub kind: DirectoryListingType,
+    /// Business name (`Business` listings).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Resident's first name (`Residence` listings).
+    #[serde(default, rename = "firstName", skip_serializing_if = "Option::is_none")]
+    pub first_name: Option<String>,
+    /// Resident's last name (`Residence` listings).
+    #[serde(default, rename = "lastName", skip_serializing_if = "Option::is_none")]
+    pub last_name: Option<String>,
+    /// Street number.
+    #[serde(
+        default,
+        rename = "streetNumber",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_number: Option<String>,
+    /// Street name, as published.
+    #[serde(
+        default,
+        rename = "streetName",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_name: Option<String>,
+    /// Street type, e.g. `St`, `Ave`.
+    #[serde(
+        default,
+        rename = "streetType",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_type: Option<String>,
+    /// Street direction: `N`, `S`, `E`, `W`, `NE`, `NW`, `SE` or `SW`.
+    #[serde(
+        default,
+        rename = "streetSuffix",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_suffix: Option<String>,
+    /// Suite or unit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    /// City.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub city: Option<String>,
+    /// Two-letter US state or territory code, as published.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    /// 5-digit ZIP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zip: Option<String>,
+    /// `true` for a multi-line listing; read-only through the API.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub complex: Option<bool>,
+}
+
+/// Body for `PUT /v2.2/numbers/{number}/directory-listing`.
+///
+/// `Business` sets `name`; `Residence` sets `firstName` and `lastName`. The
+/// street is optional — give `street_number` and `street_name` together, or
+/// neither. `city`, `state`, and `zip` are required. Letters, numbers,
+/// spaces and `& ' . , # / -` are allowed in the text fields.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DirectoryListingRequest {
+    /// Listing type.
+    #[serde(rename = "type")]
+    pub kind: DirectoryListingRequestType,
+    /// Business name; required for business (max 60).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Resident's first name; required for residence (max 30).
+    #[serde(default, rename = "firstName", skip_serializing_if = "Option::is_none")]
+    pub first_name: Option<String>,
+    /// Resident's last name; required for residence (max 30).
+    #[serde(default, rename = "lastName", skip_serializing_if = "Option::is_none")]
+    pub last_name: Option<String>,
+    /// Street number (max 10); give together with `street_name`, or neither.
+    #[serde(
+        default,
+        rename = "streetNumber",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_number: Option<String>,
+    /// Street name (max 40); give together with `street_number`, or neither.
+    #[serde(
+        default,
+        rename = "streetName",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_name: Option<String>,
+    /// Street type word such as `St`, `Ave` or `Rd` (max 10).
+    #[serde(
+        default,
+        rename = "streetType",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_type: Option<String>,
+    /// Street direction (`""`, `N`, `S`, `E`, `W`, `NE`, `NW`, `SE`, `SW`);
+    /// requires `street_name`.
+    #[serde(
+        default,
+        rename = "streetSuffix",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub street_suffix: Option<String>,
+    /// Suite or unit (max 30); requires `street_name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    /// City the listing is at (required, max 40).
+    pub city: String,
+    /// Two-letter US state or territory code (required).
+    pub state: String,
+    /// 5-digit ZIP (required; a ZIP+4 is accepted and stored as 5 digits).
+    pub zip: String,
+}
+
+/// Response data for `GET`/`PUT`/`DELETE`
+/// `/v2.2/numbers/{number}/directory-listing`.
+///
+/// `PUT` and `DELETE` are accepted at once (HTTP 202) and applied in the
+/// background: `status` is `Pending` / `Removing` (or `NotListed` when a
+/// pending add was cancelled, with `order_id` absent) and `order_id` carries
+/// the carrier order reference. `GET` reports the state as published, with
+/// `eligible` telling whether a listing can be added.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct DirectoryListingData {
+    /// 10-digit TN.
+    pub number: String,
+    /// Listing state.
+    pub status: DirectoryListingStatus,
+    /// Whether a listing can be added to this number (GET).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eligible: Option<bool>,
+    /// The published listing, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub listing: Option<DirectoryListing>,
+    /// A submitted listing not yet published, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<DirectoryListing>,
+    /// Carrier order reference for the submitted change (`PUT`/`DELETE`).
+    #[serde(default, rename = "orderId", skip_serializing_if = "Option::is_none")]
+    pub order_id: Option<String>,
 }

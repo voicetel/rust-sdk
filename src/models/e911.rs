@@ -46,8 +46,9 @@ pub struct E911CreateRequest {
 pub struct E911ProvisionByIdRequest {
     /// Caller name to provision.
     pub callername: String,
-    /// Address ID from a prior `POST /v2.2/e911/validations`.
-    pub addressid: i64,
+    /// Address ID from a prior `POST /v2.2/e911/validations` — a hex
+    /// string (e.g. `123a45b678c9d012e3f45a67b890c123`).
+    pub addressid: String,
 }
 
 /// An e911 record bound to a TN.
@@ -73,8 +74,9 @@ pub struct E911Entry {
 /// Validated address returned by `POST /v2.2/e911/validations`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct E911ValidatedAddress {
-    /// Server-assigned address ID — pass to `Provision`.
-    pub addressid: i64,
+    /// Server-assigned address ID (a hex string, e.g.
+    /// `123a45b678c9d012e3f45a67b890c123`) — pass to `Provision`.
+    pub addressid: String,
     /// Address line 1.
     pub address1: String,
     /// Address line 2.

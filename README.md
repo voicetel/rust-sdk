@@ -2,7 +2,7 @@
 
 The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/api/v2.2/) — provision numbers, place orders, validate e911, send messages, and manage your account, all with strongly-typed `serde` models and an async-first ergonomics on top of [`reqwest`].
 
-![Version](https://img.shields.io/badge/version-2.2.17-blue)
+![Version](https://img.shields.io/badge/version-2.2.20-blue)
 ![Rust](https://img.shields.io/badge/rust-1.75%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
@@ -27,7 +27,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 ## ✨ Features
 
 ### 🛡️ Strongly Typed End-to-End
-- **`#[derive(Serialize, Deserialize)]` on every model** — 79 operations across 10 resources, no `serde_json::Value` smuggling.
+- **`#[derive(Serialize, Deserialize)]` on every model** — 83 operations across 10 resources, no `serde_json::Value` smuggling.
 - **`Option<T>` + `skip_serializing_if`** on optional request fields — distinguish "not set" from "zero" cleanly when PATCH-ing.
 - **`Option<T>` for nullable response fields** — `forward_to: Option<String>` lets you tell apart "no forward configured" from an empty destination.
 - **Wire-name aware** — `fromNumber`, `localRoutingNumber`, `rateCenterTier`, `ticketNumber` and friends are all surfaced under idiomatic snake_case Rust names via `#[serde(rename = ...)]`.
@@ -41,19 +41,19 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 - **Envelope unwrap** — `{"status":"success","data": ...}` is stripped before the response hits your code.
 
 ### 📞 Complete API Coverage
-- **Numbers** — list, get, add, remove, route, translate, CNAM, LIDB, fax, forward, SMS, messaging campaigns, port-out PIN, account moves.
+- **Numbers** — list, get, add, remove, route, translate, CNAM, LIDB, fax, forward, SMS, messaging campaigns, port-out PIN, 411 directory listing, account moves.
 - **Account** — profile, sub-accounts, CDRs, credits, payments, MRC, registration, password recovery.
 - **e911** — record provisioning, address validation, lookup, removal.
 - **Gateways** — list, create, update, delete, view bound numbers.
 - **Messaging** — SMS & MMS sending, message history, 10DLC brand and campaign registration, per-number messaging state, and messaging health (account overview, per-number live check, spam-blocked samples, alert-email setting).
-- **Lookups** — CNAM and LRN dips.
+- **Lookups** — CNAM, carrier & line type, and LRN dips.
 - **iNumbering** — inventory search, coverage queries, number orders, port-in submissions, port-out availability (with v2.2.10 `localRoutingNumber` / `rateCenterTier`).
 - **Support** — ticket create / read / update / delete, threaded messages, replies.
 - **ACL** — IP allowlist management with structured 409 conflict bodies (`AclConflictData`).
 - **Authentication** — switch between Digest, IP-only, or hybrid modes; rotate passwords.
 
 ### 🧪 Battle-Tested
-- **97 tests** + 2 doc-tests + 2 integration tests via **`wiremock`**.
+- **109 tests** + 2 doc-tests + 2 integration tests via **`wiremock`**.
 - **93% line coverage** (cargo-tarpaulin, llvm engine).
 - Every method's happy path and error path covered.
 - **`cargo fmt --check`** clean.
@@ -67,7 +67,7 @@ The official Rust client for the [VoiceTel REST API](https://voicetel.com/docs/a
 
 ```toml
 [dependencies]
-voicetel = "2.2.17"
+voicetel = "2.2.20"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.2.20 — 2026-11-20
+
+Spec v2.2.20 sync. Adds the four new operations and tracks the truth fixes from spec v2.2.18–v2.2.20.
+
+### Added
+- **Directory listing (411)** on a number: `numbers().get_directory_listing(number)`,
+  `.set_directory_listing(number, &DirectoryListingRequest { .. })`,
+  `.remove_directory_listing(number)` — GET returns the published state
+  (`listed` / `not_listed` / `pending` / `removing` / `unavailable`, `eligible`,
+  `listing`, `pending`); PUT/DELETE are accepted at once (HTTP 202, applied in the
+  background) with an `orderId`.
+- **Carrier & line-type lookup**: `lookups().carrier(number)` — carrier details with
+  the upstream field names (`mobile_country_code`, `mobile_network_code`,
+  `error_code`); billed per lookup at the account's CNAM rate.
+- `OrderCreateData::routes` — POST /v2.2/orders now returns the route each ordered
+  number was placed on.
+
+### Changed
+- e911 `addressid` is a **string** (hex), not an integer, on both the validation
+  response and `E911ProvisionByIdRequest`.
+- `MessageSendRequest::text` is optional (media-only MMS is valid); `subject` is
+  deprecated; `mediaUrls` must be non-empty.
+- Message-history `value` records carry the full field set: `messageText`,
+  `transactionGUID`, `concatenatedMessage` (dlr), `attachments`, `subject` (mms),
+  `ip` (outbound sms).
+- DID `route` fields accept any gateway id on the account in addition to the global
+  routes; an unknown route is rejected by the API with 400.
+
 ## 2.2.17 — 2026-10-17
 
 Spec v2.2.17 sync.

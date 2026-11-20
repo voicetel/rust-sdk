@@ -6,7 +6,8 @@ use serde_json::Value;
 /// Body for `POST /v2.2/messages`. Wire field names are camelCase
 /// (`fromNumber`, `toNumber`).
 ///
-/// Non-empty `media_urls` switches the message type to MMS and unlocks `subject`.
+/// A non-empty `media_urls` switches the message type to MMS; media-only
+/// MMS (no `text`) is valid.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MessageSendRequest {
     /// 10-digit TN on the authenticated account.
@@ -15,12 +16,17 @@ pub struct MessageSendRequest {
     /// 10-digit destination TN.
     #[serde(rename = "toNumber")]
     pub to_number: String,
-    /// UTF-8 message body.
-    pub text: String,
-    /// MMS subject (MMS only).
+    /// UTF-8 message body. Required for SMS; optional for media-only MMS
+    /// (at most 2048 characters there, 400 otherwise). A long SMS is split
+    /// into charged segments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// **Deprecated.** Accepted for compatibility but not delivered on most
+    /// messaging routes; do not rely on it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
-    /// Media URLs — presence makes this an MMS.
+    /// Publicly reachable http(s) media URLs — presence makes this an MMS.
+    /// Send at least one; an empty list is not valid MMS.
     #[serde(default, rename = "mediaUrls", skip_serializing_if = "Vec::is_empty")]
     pub media_urls: Vec<String>,
 }
@@ -73,17 +79,18 @@ pub struct MessagingCampaignCreateRequest {
     pub campaign_start_date: Option<String>,
 }
 
-/// Per-record value inside a [`MessageRecord`].
+/// Per-record value inside a [`MessageRecord`]. Which fields are present
+/// depends on the record type (`sms`, `mms`, or `dlr`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MessageRecordValue {
-    /// Source TN.
+    /// Source TN (dlr).
     #[serde(
         default,
         rename = "sourceNumber",
         skip_serializing_if = "Option::is_none"
     )]
     pub source_number: Option<String>,
-    /// Destination TN.
+    /// Destination TN (dlr).
     #[serde(
         default,
         rename = "destinationNumber",
@@ -99,9 +106,43 @@ pub struct MessageRecordValue {
     /// Far-end number (sms/mms only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub number: Option<String>,
-    /// Message body (sms/mms only).
+    /// Message body (sms/mms only); may be empty for a media-only MMS.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// The delivery receipt as received, including `stat:` (for example
+    /// `DELIVRD`, `UNDELIV`, `EXPIRED`) and `err:` (dlr).
+    #[serde(
+        default,
+        rename = "messageText",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub message_text: Option<String>,
+    /// ID of the message this receipt is for (dlr).
+    #[serde(
+        default,
+        rename = "transactionGUID",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub transaction_guid: Option<String>,
+    /// Present on some receipts for multi-part messages (dlr).
+    #[serde(
+        default,
+        rename = "concatenatedMessage",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub concatenated_message: Option<String>,
+    /// Media attachments (mms). Inbound: one object per media file (with
+    /// `contentFile`, `Content-Type`, `fileName`, `extension`); outbound:
+    /// the submitted media URL(s) as a string or array. Untyped because the
+    /// two shapes differ.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Value>,
+    /// Subject, if one was sent or received (mms).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    /// Address the send request came from (outbound sms only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ip: Option<String>,
 }
 
 /// One row in [`MessageHistoryData::messages`].

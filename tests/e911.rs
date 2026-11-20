@@ -4,7 +4,7 @@ mod common;
 use common::{envelope, test_client};
 
 use voicetel::models::e911::*;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{body_partial_json, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -52,7 +52,7 @@ async fn e911_validate() {
     Mock::given(method("POST"))
         .and(path("/v2.2/e911/validations"))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
-            "address": {"addressid": 42, "address1": "1 St", "city": "C", "state": "NJ", "zip": "07000"}
+            "address": {"addressid": "123a45b678c9d012e3f45a67b890c123", "address1": "1 St", "city": "C", "state": "NJ", "zip": "07000"}
         }))))
         .mount(&server)
         .await;
@@ -65,7 +65,8 @@ async fn e911_validate() {
         zip: "07000".into(),
     };
     let out = c.e911().validate(&body).await.unwrap();
-    assert_eq!(out.address.addressid, 42);
+    // v2.2.20: addressid is a hex string, not an integer.
+    assert_eq!(out.address.addressid, "123a45b678c9d012e3f45a67b890c123");
 }
 
 #[tokio::test]
@@ -88,6 +89,10 @@ async fn e911_provision() {
     let server = MockServer::start().await;
     Mock::given(method("PUT"))
         .and(path("/v2.2/e911/2015550123"))
+        .and(body_partial_json(serde_json::json!({
+            "callername": "Joe",
+            "addressid": "123a45b678c9d012e3f45a67b890c123"
+        })))
         .respond_with(ResponseTemplate::new(200).set_body_json(envelope(serde_json::json!({
             "record": {"dn": "12015550123", "callername": "Joe", "address1": "1 St", "city": "C", "state": "NJ", "zip": "07000"}
         }))))
@@ -96,7 +101,7 @@ async fn e911_provision() {
     let c = test_client(&server).await;
     let body = E911ProvisionByIdRequest {
         callername: "Joe".into(),
-        addressid: 42,
+        addressid: "123a45b678c9d012e3f45a67b890c123".into(),
     };
     let out = c.e911().provision("2015550123", &body).await.unwrap();
     assert_eq!(out.record.dn, "12015550123");
